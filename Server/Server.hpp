@@ -1,13 +1,14 @@
-#pragma once
 #ifndef SERVER_HPP
 #define SERVER_HPP
 
-#include "../client/includes.hpp"
+#include "../client/client.hpp"
 #include "../channel/ChannelRegistry.hpp"
 #include "../Bot/Bot.hpp"
 #include <csignal>
-
-static volatile bool g_shutdown_requested = false;
+#include <map>
+#include <poll.h>
+#include <string>
+#include <vector>
 
 class Server {
 private:
@@ -16,12 +17,13 @@ private:
     std::string _serverName;
     std::string _password;
     std::vector<struct pollfd> _pollfds;
-    std::map<int, Client> _clientBuffers; // atwali std::map<int, Client> (a si salah)
+    std::map<int, Client> _clientBuffers;
     QuizBot _bot;
 
     void AcceptNewClient();
     void ReceiveNewData(int fd, ChannelRegistry& channels);
     void ClearClient(int fd, ChannelRegistry& channels);
+    bool hasPollFd(int fd) const;
 
 public:
     Server(int port, std::string password);

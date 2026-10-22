@@ -1,4 +1,7 @@
-#include "includes.hpp"
+#include "authentification.hpp"
+#include "client.hpp"
+#include <iostream>
+#include <sys/socket.h>
 
 Authentification::Authentification() : _authenticated(false) , _password(""), _nickname(""), _username("") {}
 
@@ -44,15 +47,17 @@ void Authentification::setAuthenticated() {
 }
 // ------------- authentication commands ---------------------
 
-static std::string makeUniqueUsername(int fd, const std::string& username, const std::map<int, Client>& clientBuffers) {
-    std::string candidate = username;
+typedef std::string (Client::*IdentifierGetter)() const;
+
+static std::string makeUniqueIdentifier(int fd, const std::string& identifier,
+    const std::map<int, Client>& clientBuffers, IdentifierGetter getter) {
+    std::string candidate = identifier;
 
     while (true) {
         bool taken = false;
-        for (std::map<int, Client>::const_iterator it = clientBuffers.begin(); it != clientBuffers.end(); ++it) {
-            if (it->first == fd)
-                continue;
-            if (it->second.getUsername() == candidate) {
+        for (std::map<int, Client>::const_iterator it = clientBuffers.begin();
+             it != clientBuffers.end(); ++it) {
+            if (it->first != fd && (it->second.*getter)() == candidate) {
                 taken = true;
                 break;
             }
@@ -63,27 +68,9 @@ static std::string makeUniqueUsername(int fd, const std::string& username, const
     }
 }
 
-static std::string makeUniqueNickname(int fd, const std::string& nickname, const std::map<int, Client>& clientBuffers) {
-	std::string candidate = nickname;
-
-	while (true) {
-		bool taken = false;
-		for (std::map<int, Client>::const_iterator it = clientBuffers.begin(); it != clientBuffers.end(); ++it) {
-			if (it->first == fd)
-				continue;
-			if (it->second.getNickname() == candidate) {
-				taken = true;
-				break;
-			}
-		}
-		if (!taken)
-			return candidate;
-		candidate += "_";
-	}
-}
-
 void Authentification::NICK(int fd, std::map<int, Client>& clientBuffers, const std::string &nickname) {
-    std::string uniqueNickname = makeUniqueNickname(fd, nickname, clientBuffers);
+    std::string uniqueNickname = makeUniqueIdentifier(
+        fd, nickname, clientBuffers, &Client::getNickname);
 
     Client& self = clientBuffers[fd];
     std::string oldPrefix = ":" + self.getNickname() + "!" + self.getUsername() + "@localhost";
@@ -107,7 +94,8 @@ void Authentification::NICK(int fd, std::map<int, Client>& clientBuffers, const 
 }
 
 void Authentification::USER(int fd,std::map<int, Client>& clientBuffers, const std::string &username) {
-    std::string uniqueUsername = makeUniqueUsername(fd, username, clientBuffers);
+    std::string uniqueUsername = makeUniqueIdentifier(
+        fd, username, clientBuffers, &Client::getUsername);
     setUsername(uniqueUsername);
     if (isAuthenticated()) {
         std::string reply = "you are now known as: " + uniqueUsername + "\r\n";
@@ -142,4 +130,3 @@ void Authentification::PASS(int fd, const std::string &password, const std::stri
     }
             
 }
-

@@ -132,6 +132,36 @@ class IrcServerTests(unittest.TestCase):
         client = self.register("registertest")
         self.assertIsNotNone(client)
 
+    def test_automatically_uniquifies_duplicate_nickname(self):
+        self.register("duplicate")
+        client = self.connect_client()
+        client.sendall(
+            b"PASS ci-test-password\r\n"
+            b"NICK duplicate\r\n"
+            b"USER duplicate 0 * :CI Test\r\n"
+        )
+        welcome = self.receive_until(client, b" 001 duplicate_ ")
+        self.assertIn(b" 001 duplicate_ ", welcome)
+
+    def test_server_accepts_clients_after_disconnect(self):
+        first = self.register("disconnecting")
+        first.close()
+        second = self.register("afterdisconnect")
+        self.assertIsNotNone(second)
+        self.assertIsNone(self.server.poll())
+
+    def test_handles_command_split_across_tcp_writes(self):
+        client = self.connect_client()
+        client.sendall(b"PASS ")
+        time.sleep(0.02)
+        client.sendall(
+            b"ci-test-password\r\n"
+            b"NICK splitwrite\r\n"
+            b"USER splitwrite 0 * :CI Test\r\n"
+        )
+        welcome = self.receive_until(client, b" 001 splitwrite ")
+        self.assertIn(b" 001 splitwrite ", welcome)
+
     def test_rejects_incorrect_password(self):
         client = self.connect_client()
         client.sendall(b"PASS incorrect-password\r\n")

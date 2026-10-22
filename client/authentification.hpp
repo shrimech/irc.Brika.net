@@ -1,7 +1,8 @@
 #ifndef AUTHENTIFICATION_HPP
 #define AUTHENTIFICATION_HPP
 
-#include "includes.hpp"
+#include <map>
+#include <string>
 
 class Client;
 class Authentification
@@ -14,7 +15,7 @@ protected:
 
 public:
     Authentification();
-    ~Authentification();
+    virtual ~Authentification();
     
     std::string getPassword() const;
     void setPassword(const std::string &password);
@@ -28,9 +29,8 @@ public:
     bool isAuthenticated() const;
     void setAuthenticated();
 
-    // ------------- authentication commands ---------------------
-    void NICK(int fd,std::map<int, Client>& clientBuffers, const std::string &nickname);
-    void USER(int fd,std::map<int, Client>& clientBuffers, const std::string &username);
+    void NICK(int fd, std::map<int, Client>& clientBuffers, const std::string& nickname);
+    void USER(int fd, std::map<int, Client>& clientBuffers, const std::string& username);
     void PASS(int fd, const std::string &password, const std::string &serv_pass);
 
 };

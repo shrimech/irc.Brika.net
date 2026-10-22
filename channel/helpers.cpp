@@ -1,13 +1,12 @@
 #include "ChannelCommands.hpp"
 
-
 void replyMsg(const std::string& rcode, const std::string& msg, Client& client)
 {
 	std::string nickName = client.getNickname();
 	client.sendMessage(":irc.Brika.net" + rcode + nickName + " " + msg  + "\r\n");
 }
 
-std::string clientPrefix(Client& client) {
+std::string clientPrefix(const Client& client) {
     return ":" + client.getNickname() + "!" + client.getUsername() + "@localhost";
 }
 

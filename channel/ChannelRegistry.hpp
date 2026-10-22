@@ -1,8 +1,8 @@
-#pragma once
+#ifndef CHANNEL_REGISTRY_HPP
+#define CHANNEL_REGISTRY_HPP
+
 #include "Channel.hpp"
 #include <map>
-
-class Channel;
 
 class ChannelRegistry
 {
@@ -17,6 +17,7 @@ class ChannelRegistry
 		Channel* findChannel(const std::string& name);
 		Channel* findOrCreate(const std::string& name);
 		void removeChannel(const std::string& name);
-		bool channelExists(const std::string& name) const;
 		void removeClientFromAllChannels(int fd);
 };
+
+#endif
