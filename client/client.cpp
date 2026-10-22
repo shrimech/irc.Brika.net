@@ -1,6 +1,8 @@
-#include "includes.hpp"
+#include "client.hpp"
+#include <iostream>
+#include <sys/socket.h>
 
-Client::Client() : fd(-1)  {Authentification();}
+Client::Client() : Authentification(), fd(-1) {}
 
 Client::~Client() {}
 
@@ -12,8 +14,20 @@ int Client::getFd() const {
     return fd;
 }
 
-std::string& Client::getInputBuffer() {
-    return inputBuffer;
+void Client::appendInput(const char* data, std::size_t size) {
+    inputBuffer.append(data, size);
+}
+
+bool Client::extractLine(std::string& line) {
+    const std::string::size_type newline = inputBuffer.find('\n');
+    if (newline == std::string::npos)
+        return false;
+
+    line = inputBuffer.substr(0, newline);
+    inputBuffer.erase(0, newline + 1);
+    if (!line.empty() && line[line.size() - 1] == '\r')
+        line.erase(line.size() - 1);
+    return true;
 }
 
 void Client::sendMessage(const std::string& message)
@@ -27,10 +41,11 @@ void Client::sendMessage(const std::string& message)
             message.size() - totalSent,
             MSG_NOSIGNAL);
 
-        if (bytes > 0)
+        if (bytes > 0) {
             totalSent += bytes;
-        else
-			std::cerr << "send() failed: " << std::endl;
+        } else {
+            std::cerr << "send() failed" << std::endl;
             break;
+        }
     }
 }

@@ -1,4 +1,5 @@
 #include "ChannelCommands.hpp"
+#include "ChannelRegistry.hpp"
 
 void joinHandler(ChannelRegistry& channels, Client& client, const std::vector<std::string>& params)
 {

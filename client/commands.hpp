@@ -1,8 +1,10 @@
 #ifndef COMMANDS_HPP
 #define COMMANDS_HPP
 
-#include "includes.hpp"
-#include "../channel/ChannelCommands.hpp"
+#include "client.hpp"
+#include <map>
+#include <string>
+#include <vector>
 
 class ChannelRegistry;
 class QuizBot;
@@ -13,7 +15,7 @@ struct Command {
 };
 
 void executeCommands(Client& client, std::map<int, Client>& clientBuffers, const Command& command, ChannelRegistry& channels, QuizBot& bot);
-void HandleCommand(int fd,std::map<int, Client>& clientBuffers, const std::string& serv_pass, const std::string& commandLine, ChannelRegistry& channels, QuizBot& bot);
+void HandleCommand(int fd, std::map<int, Client>& clientBuffers, const std::string& serv_pass, const std::string& commandLine, ChannelRegistry& channels, QuizBot& bot);
 Command parseCommand(const std::string& commandLine);
 
 // ---------- commands ------------------------------

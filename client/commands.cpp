@@ -1,5 +1,10 @@
-#include "includes.hpp"
+#include "commands.hpp"
 #include "../Bot/Bot.hpp"
+#include "../channel/ChannelCommands.hpp"
+#include "../channel/Channel.hpp"
+#include "../channel/ChannelRegistry.hpp"
+#include <iostream>
+#include <sys/socket.h>
 
 static void authenticateClient(Client& client, std::map<int, Client>& clientBuffers,
     const std::string& serv_pass, const Command& command) {
@@ -115,30 +120,22 @@ void PRIVMSG(int fd, const std::map<int, Client>& clientBuffers, Client& client,
     }
 
     if (recipient[0] == '#') {
-        if (!channels.channelExists(recipient)) {
+        Channel* channel = channels.findChannel(recipient);
+        if (!channel) {
             std::string reply = "403 " + client.getNickname() + " " + recipient + " :No such channel\r\n";
             send(fd, reply.c_str(), reply.length(), 0);
             std::cerr << "Channel " << recipient << " does not exist." << std::endl;
             return;
         }
-        else {
-            Channel* channel = channels.findChannel(recipient);
-            if (channel) {
-                if (!channel->isMember(client.getFd())) {
-                    std::string reply = "404 " + client.getNickname() + " " + recipient + " :Cannot send to channel\r\n";
-                    send(fd, reply.c_str(), reply.length(), 0);
-                    std::cerr << "Client " << client.getFd() << " is not a member of channel " << recipient << "." << std::endl;
-                    return;
-                }
-                std::string fullMessage = ":" + client.getNickname() + "!" + client.getUsername() + "@localhost PRIVMSG " + recipient + " :" + message + "\r\n";
-                channel->broadCast(fullMessage, client.getFd());
-                std::cout << "Message sent to channel " << recipient << ": " << message << std::endl;
-                return;
-            }
+        if (!channel->isMember(client.getFd())) {
+            std::string reply = "404 " + client.getNickname() + " " + recipient + " :Cannot send to channel\r\n";
+            send(fd, reply.c_str(), reply.length(), 0);
+            std::cerr << "Client " << client.getFd() << " is not a member of channel " << recipient << "." << std::endl;
+            return;
         }
-        std::string reply = "404 " + client.getNickname() + " " + recipient + " :Cannot send to channel\r\n";
-        send(fd, reply.c_str(), reply.length(), 0);
-        std::cerr << "PRIVMSG to channels is not implemented yet." << std::endl;
+        std::string fullMessage = ":" + client.getNickname() + "!" + client.getUsername() + "@localhost PRIVMSG " + recipient + " :" + message + "\r\n";
+        channel->broadCast(fullMessage, client.getFd());
+        std::cout << "Message sent to channel " << recipient << ": " << message << std::endl;
         return;
     }
 

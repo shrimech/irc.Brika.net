@@ -1,6 +1,6 @@
 #include "Channel.hpp"
 
-Channel::Channel(const std::string& name): _name(name), _inviteOnly(false),
+Channel::Channel(const std::string& name): _name(name), _userLimit(0), _inviteOnly(false),
 			_topicRestricted(true), _hasKey(false), _hasUserLimit(false) {}
 Channel::~Channel() {}
 
@@ -22,11 +22,6 @@ bool Channel::isMember(int fd) const {
 size_t Channel::getMemberCount() const {
 	return _members.size();
 }
-std::map<int, Client*>& Channel::getMembers() {
-	return _members;
-}
-
-
 void Channel::addOperator(int fd) {
 	_operators.insert(fd);
 }
