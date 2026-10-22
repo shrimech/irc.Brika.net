@@ -1,90 +1,70 @@
-*This project has been created as part of the 42 curriculum by ahamou-t, shrimech, houardi.*
+# irc.Brika.net
 
-# ft_irc
+A lightweight IRC server built with **C++98**, designed for real-time communication over TCP/IP.
 
-> *Internet Relay Chat Server — 42 Curriculum*
+## Overview
 
----
+**irc.Brika.net** is an Internet Relay Chat (IRC) server providing client connectivity, user registration, authentication, private messaging, and bot interactions through the IRC protocol.
 
-## 📄 Description
+## Features
 
-**ft_irc** is an Internet Relay Chat (IRC) server written in **C++98**. The main goal of this project is to build a fully functional, non-blocking network server capable of handling multiple client connections concurrently without using multi-threading.
+- TCP/IP client connections
+- Password-based authentication
+- User registration with `NICK` and `USER`
+- Nickname uniqueness
+- Private messaging with `PRIVMSG`
+- Connection keepalive with `PING` and `PONG`
+- Welcome messages
+- Custom `QuizBot`
 
-Using non-blocking POSIX sockets and a single event multiplexing loop (`poll()`, `select()`, `kqueue()`, or `epoll()`), the server handles partial message reads, client buffering, and command processing. It complies with the project specification and can be tested with standard IRC clients like **Irssi**, **WeeChat**, or `nc`.
+## Getting Started
 
-### Core Features
+### Requirements
 
-*   **Authentication Flow:** Supports `PASS` (server password validation), `NICK` (nickname assignment and duplicate collision handling), and `USER` (registration completion).
-*   **Channel Operations:**
-    *   `JOIN`: Create or enter channels with topic and member updates.
-    *   `TOPIC`: Display or modify the topic based on permissions.
-    *   `INVITE`: Invite users to invite-only channels.
-    *   `KICK`: Remove target users from channels.
-    *   `MODE`: Manage channel state flags:
-        *   `+i` / `-i`: Toggle invite-only status.
-        *   `+t` / `-t`: Restrict `TOPIC` changes to channel operators.
-        *   `+k` / `-k`: Set or remove channel password key.
-        *   `+o` / `-o`: Grant or revoke channel operator status.
-        *   `+l` / `-l`: Set or remove maximum client limits.
-*   **Messaging & Bot:**
-    *   Direct `PRIVMSG` routing between individual users.
-    *   Channel message broadcasting.
-    *   Built-in bot support for automated/interactive command replies.
+- C++ compiler with C++98 support
+- `make`
+- An IRC client such as `irssi`
 
----
-
-## 🛠️ Instructions
-
-### Prerequisites
-
-*   A standard Unix-like environment (Linux / macOS)
-*   A C++ compiler supporting C++98 (`c++`, `g++`, or `clang++`)
-*   `make`
-
-### Compilation
-
-Compile the project executable using the provided Makefile:
+### Build
 
 ```bash
+git clone https://github.com/shrimech/ft_irc.git
+cd ft_irc
 make
 ```
 
-### Execution
-
-Launch the server by passing the target port and network password:
+### Start the server
 
 ```bash
 ./ircserv <port> <password>
 ```
 
-*Example:*
-```bash
-./ircserv 6667 my_secret_pass
-```
-
-### Connecting to the Server
-
-Connect using any IRC client or standard TCP network utility:
+Example:
 
 ```bash
-irssi -c localhost -p 6667 -n my_nickname -w my_secret_pass
+./ircserv 6667 mypassword
 ```
 
----
+### Connect
 
-## 📚 Resources
+If the server is running locally:
 
-### IRC Specifications & Documentation
+```text
+/connect 127.0.0.1 6667 mypassword
+```
 
-*   [RFC 1459 — Internet Relay Chat Protocol](https://datatracker.ietf.org/doc/html/rfc1459)
-*   [RFC 2812 — Internet Relay Chat: Client Protocol](https://datatracker.ietf.org/doc/html/rfc2812)
-*   [Beej's Guide to Network Programming](https://beej.us/guide/bgnet/)
-*   [Modern IRC Client Protocol Docs](https://modern.ircdocs.horse/)
+If `irc.Brika.net` is configured in DNS and the server is reachable externally:
 
-### AI Assistance Declaration
+```text
+/connect irc.Brika.net 6667 mypassword
+```
 
-Artificial Intelligence tools (ChatGPT / Claude / Gemini) were utilized during this project for the following tasks:
+Replace the port and password with your server's actual configuration.
 
-*   **Debugging & Edge Cases:** Analyzing network edge-case behavior (e.g., partial read/write socket buffering and socket disconnection edge cases).
-*   **Documentation:** Formatting and structuring project documentation and `README.md` to ensure clarity and standard compliance.
-*   **Testing:** Writing automated scripts and test sequences to verify RFC command syntax and protocol edge cases.
+## QuizBot
+
+The server includes a custom IRC bot named `QuizBot`, with interactions through supported bot commands.
+
+## Testing
+
+Connect multiple IRC clients to test registration, authentication, private messaging, nickname handling, and bot functionality.
