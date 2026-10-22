@@ -1,7 +1,9 @@
-#include "client/includes.hpp"
+#include "Server/Server.hpp"
 #include <csignal>
 #include <cstdlib>
 #include <cctype>
+#include <iostream>
+#include <stdexcept>
 
 static bool isValidPort(const char* str, int& port) {
     if (!str || !str[0])

@@ -2,7 +2,7 @@
 #include <string>
 #include <map>
 #include <set>
-#include <iterator>
+#include <cstddef>
 #include "../client/client.hpp"
 
 
@@ -34,7 +34,6 @@ class Channel
 		void removeMember(int fd);
 		bool isMember(int fd) const;
 		size_t getMemberCount() const;
-		std::map<int, Client*>& getMembers();
 
 		void addOperator(int fd);
 		void removeOperator(int fd);

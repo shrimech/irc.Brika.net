@@ -1,8 +1,11 @@
-#pragma once
 #ifndef BOT_HPP
 #define BOT_HPP
 
-#include "../client/includes.hpp"
+#include <cstdlib>
+#include <iostream>
+#include <map>
+#include <string>
+#include <vector>
 
 struct Question {
     std::string text;

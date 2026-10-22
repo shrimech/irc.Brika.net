@@ -1,11 +1,13 @@
 #ifndef CLIENT_HPP
 #define CLIENT_HPP
 
-#include "includes.hpp"
+#include "authentification.hpp"
+#include <cstddef>
+#include <string>
 
 class Client : public Authentification
 {
-    protected:
+    private:
         int fd;
         std::string inputBuffer;
         
@@ -15,7 +17,8 @@ class Client : public Authentification
 
         void setFd(int fd);
         int getFd() const;
-        std::string& getInputBuffer();
+        void appendInput(const char* data, std::size_t size);
+        bool extractLine(std::string& line);
         void sendMessage(const std::string &message);
 };
 
