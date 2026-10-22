@@ -1,6 +1,6 @@
 #include "ChannelCommands.hpp"
 
-void topicHandler(ChannelRegistry& channels, Client& client, std::vector<std::string> params)
+void topicHandler(ChannelRegistry& channels, Client& client, const std::vector<std::string>& params)
 {
 	if (params.empty())
 		return replyMsg(" 461 ", "TOPIC :Not enough parameters", client);

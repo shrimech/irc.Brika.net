@@ -12,12 +12,8 @@ int Client::getFd() const {
     return fd;
 }
 
-void Client::setCmd_line(const std::string& cmd_line) {
-    command.cmd_line = cmd_line;
-}
-
-std::string& Client::getCmd_line()  {
-    return command.cmd_line;
+std::string& Client::getInputBuffer() {
+    return inputBuffer;
 }
 
 void Client::sendMessage(const std::string& message)

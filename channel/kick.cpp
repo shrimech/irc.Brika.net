@@ -1,6 +1,6 @@
 #include "ChannelCommands.hpp"
 
-void kickHandler(ChannelRegistry& channels, std::map<int, Client>& clients, Client& client, std::vector<std::string> params)
+void kickHandler(ChannelRegistry& channels, std::map<int, Client>& clients, Client& client, const std::vector<std::string>& params)
 {
 	if (params.size() < 2)
 		return replyMsg(" 461 ", "KICK :Not enough parameters", client);

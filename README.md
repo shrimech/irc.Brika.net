@@ -25,6 +25,7 @@ A lightweight IRC server built with **C++98**, designed for real-time communicat
 
 - C++ compiler with C++98 support
 - `make`
+- Python 3 to run the integration tests
 - An IRC client such as `irssi`
 
 ### Build
@@ -32,8 +33,17 @@ A lightweight IRC server built with **C++98**, designed for real-time communicat
 ```bash
 git clone https://github.com/shrimech/ft_irc.git
 cd ft_irc
+sh scripts/install-dependencies.sh
 make
 ```
+
+### Build targets
+
+- `make` or `make all` builds `ircserv`.
+- `make test` builds the server and runs the integration tests.
+- `make clean` removes intermediate build files.
+- `make fclean` removes intermediate files and the server executable.
+- `make re` performs a clean rebuild.
 
 ### Start the server
 
@@ -69,4 +79,4 @@ The server includes a custom IRC bot named `QuizBot`, with interactions through 
 
 ## Testing
 
-Connect multiple IRC clients to test registration, authentication, private messaging, nickname handling, and bot functionality.
+Run `make test` to build the server and execute the integration test suite. You can also connect multiple IRC clients to test registration, authentication, private messaging, nickname handling, and bot functionality.

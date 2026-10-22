@@ -97,13 +97,13 @@ void Server::ReceiveNewData(int fd, ChannelRegistry& channels) {
 
     if (bytes > 0) {
 		
-        _clientBuffers[fd].getCmd_line().append(&buffer[0], bytes);
+        _clientBuffers[fd].getInputBuffer().append(&buffer[0], bytes);
         
         size_t pos;
-        while ((pos = _clientBuffers[fd].getCmd_line().find("\n")) != std::string::npos) {
-            std::string command = _clientBuffers[fd].getCmd_line().substr(0, pos);
+        while ((pos = _clientBuffers[fd].getInputBuffer().find("\n")) != std::string::npos) {
+            std::string command = _clientBuffers[fd].getInputBuffer().substr(0, pos);
 
-            _clientBuffers[fd].getCmd_line().erase(0, pos + 1);
+            _clientBuffers[fd].getInputBuffer().erase(0, pos + 1);
 
             if (!command.empty() && command[command.length() - 1] == '\r')
                 command.erase(command.length() - 1);
