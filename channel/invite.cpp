@@ -1,6 +1,6 @@
 #include "ChannelCommands.hpp"
 
-void inviteHandler(ChannelRegistry& channels, Client& client, std::vector<std::string> params, std::map<int, Client>& clients)
+void inviteHandler(ChannelRegistry& channels, Client& client, const std::vector<std::string>& params, std::map<int, Client>& clients)
 {
 	if (params.size() < 2)
 		return replyMsg(" 461 ", "INVITE :Not enough parameters", client);

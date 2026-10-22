@@ -3,16 +3,11 @@
 
 #include "includes.hpp"
 
-struct Command {
-    std::string cmd_line;
-    std::string command;
-    std::vector<std::string> params;
-};
 class Client : public Authentification
 {
     protected:
         int fd;
-        struct Command command;
+        std::string inputBuffer;
         
     public:
         Client();
@@ -20,11 +15,7 @@ class Client : public Authentification
 
         void setFd(int fd);
         int getFd() const;
-        void setCmd_line(const std::string& cmd_line);
-    
-        std::string& getCmd_line() ;
-        std::vector<std::string>& getParams();
-        std::string& getCommand();
+        std::string& getInputBuffer();
         void sendMessage(const std::string &message);
 };
 

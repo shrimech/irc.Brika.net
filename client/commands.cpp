@@ -1,10 +1,8 @@
 #include "includes.hpp"
 #include "../Bot/Bot.hpp"
 
-void authentificate(Client& client,std::map<int, Client>& clientBuffers, const std::string& serv_pass, const std::string& commandLine) {
-    Command command;
-    parseCommand(commandLine, command);
-
+static void authenticateClient(Client& client, std::map<int, Client>& clientBuffers,
+    const std::string& serv_pass, const Command& command) {
     if (command.command == "NICK" && command.params.size() == 1) {
         client.NICK(client.getFd(),clientBuffers, command.params[0]); 
     } else if ((command.command == "USER") && command.params.size() == 4) {
@@ -39,47 +37,45 @@ void authentificate(Client& client,std::map<int, Client>& clientBuffers, const s
 		send(client.getFd(), reply.c_str(), reply.length(), 0);
 	}
 }
-void executeCommands(Client& client, std::map<int, Client>& clientBuffers, const Command& command, ChannelRegistry& channels, QuizBot& bot);
 void HandleCommand(int fd, std::map<int, Client>& clientBuffers, const std::string& serv_pass, const std::string& commandLine, ChannelRegistry& channels, QuizBot& bot) {
-    Command command;
+    const Command command = parseCommand(commandLine);
     Client& client = clientBuffers[fd];
     client.setFd(fd);
     std::cout << client.Authentification::isAuthenticated() << "  " << commandLine << std::endl;
     if (!client.isAuthenticated()) {
-            authentificate(client,clientBuffers, serv_pass, commandLine);
+        authenticateClient(client, clientBuffers, serv_pass, command);
         if (!client.isAuthenticated()) {
             std::cerr << "Client not authenticated. ALL Commands are ignored.for user : "<< fd << " except PASS,NICK,USER" << std::endl;
             return;
         }
     }
-    else
-    {
-        parseCommand(commandLine, command);
-        executeCommands(client,clientBuffers, command, channels, bot);
+    else {
+        executeCommands(client, clientBuffers, command, channels, bot);
     }
-    
 }
 
-void parseCommand(const std::string& cmd_line, Command& command) {
-    size_t start = cmd_line.find_first_not_of(" \t");
-    size_t end = cmd_line.find_first_of(" \t", start);
+Command parseCommand(const std::string& commandLine) {
+    Command command;
+    size_t start = commandLine.find_first_not_of(" \t");
+    size_t end = commandLine.find_first_of(" \t", start);
 
     if (start != std::string::npos) {
-        command.command = cmd_line.substr(start, end - start);
-        start = cmd_line.find_first_not_of(" \t", end);
+        command.command = commandLine.substr(start, end - start);
+        start = commandLine.find_first_not_of(" \t", end);
 
         while (start != std::string::npos) {
-            if (cmd_line[start] == ':') {
-                end = cmd_line.length();
+            if (commandLine[start] == ':') {
+                end = commandLine.length();
                 start++;
             }
             else {
-                end = cmd_line.find_first_of(" \t", start);
+                end = commandLine.find_first_of(" \t", start);
             }
-            command.params.push_back(cmd_line.substr(start, end - start));
-            start = cmd_line.find_first_not_of(" \t", end);
+            command.params.push_back(commandLine.substr(start, end - start));
+            start = commandLine.find_first_not_of(" \t", end);
         }
     }
+    return command;
 }
 
 void PRIVMSG(int fd, const std::map<int, Client>& clientBuffers, Client& client, const Command& command, ChannelRegistry& channels, QuizBot& bot) {
@@ -166,7 +162,6 @@ void PRIVMSG(int fd, const std::map<int, Client>& clientBuffers, Client& client,
 
 
 void executeCommands(Client& client, std::map<int, Client>& clientBuffers, const Command& command, ChannelRegistry& channels, QuizBot& bot) {
-	std::vector<std::string> params = command.params;
     if(command.command == "PASS"|| command.command == "USER")
     {
         std::string reply =  "U're already authentified ! \r\n";
@@ -181,33 +176,16 @@ void executeCommands(Client& client, std::map<int, Client>& clientBuffers, const
         PRIVMSG(client.getFd(),clientBuffers,client, command, channels, bot);
     }
 	else if (command.command == "JOIN")
-		joinHandler(channels, client, params);
+		joinHandler(channels, client, command.params);
 	else if (command.command == "TOPIC")
-		topicHandler(channels, client, params);
+		topicHandler(channels, client, command.params);
 	else if (command.command == "INVITE")
-		inviteHandler(channels, client, params, clientBuffers);
+		inviteHandler(channels, client, command.params, clientBuffers);
 	else if (command.command == "KICK")
-    	kickHandler(channels, clientBuffers, client, params);
+		kickHandler(channels, clientBuffers, client, command.params);
 	else if (command.command == "MODE")
-    	modeHandler(channels, clientBuffers, client, params);
+		modeHandler(channels, clientBuffers, client, command.params);
 	else {
         std::cerr << "Unknown command: " << command.command << std::endl;
-    }
-	params.clear();
-}
-
-void checkUniqueUsername(const std::string& username, const std::map<int, Client>& clientBuffers) {
-    for (std::map<int, Client>::const_iterator it = clientBuffers.begin(); it != clientBuffers.end(); ++it) {
-        if (it->second.getUsername() == username) {
-            throw std::runtime_error("462 UserName: ERR_ALREADYREGISTERED");
-        }
-    }
-}
-
-void checkUniqueNickname(const std::string& nickname, const std::map<int, Client>& clientBuffers) {
-    for (std::map<int, Client>::const_iterator it = clientBuffers.begin(); it != clientBuffers.end(); ++it) {
-        if (it->second.getNickname() == nickname) {
-            throw std::runtime_error("462 NickName: ERR_ALREADYREGISTERED");
-        }
     }
 }

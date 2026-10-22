@@ -1,0 +1,5 @@
+/build/
+/ircserv
+*.o
+*.d
+__pycache__/

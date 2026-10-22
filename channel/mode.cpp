@@ -27,7 +27,7 @@ static std::string currentModeString(Channel* channel, bool isOp)
 void modeHandler(ChannelRegistry& channels,
 	std::map<int, Client>& clients,
 	Client& client,
-	std::vector<std::string> params)
+	const std::vector<std::string>& params)
 {
 	if (params.empty())
 		return replyMsg(" 461 ", "MODE :Not enough parameters", client);
