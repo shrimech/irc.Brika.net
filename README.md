@@ -1,5 +1,7 @@
 # irc.Brika.net
 
+> **Want to contribute?** Contributions are welcome! Please read our [Contributing Guidelines](CONTRIBUTING.md) before submitting issues or pull requests.
+
 A lightweight IRC server built with **C++98**, designed for real-time communication over TCP/IP.
 
 ## Overview
