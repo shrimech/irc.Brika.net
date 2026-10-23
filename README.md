@@ -31,8 +31,8 @@ A lightweight IRC server built with **C++98**, designed for real-time communicat
 ### Build
 
 ```bash
-git clone https://github.com/shrimech/ft_irc.git
-cd ft_irc
+git clone https://github.com/shrimech/irc.Brika.net.git
+cd irc.Brika.net
 sh scripts/install-dependencies.sh
 make
 ```
