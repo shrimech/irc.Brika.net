@@ -9,8 +9,8 @@ First of all, thank you for your interest in contributing to **irc.Brika.net**! 
 2. Clone your fork:
 
    ```bash
-   git clone https://github.com/YOUR_USERNAME/ft_irc.git
-   cd ft_irc
+   git clone https://github.com/YOUR_USERNAME/irc.Brika.net.git
+   cd irc.Brika.net
    ```
 
 3. Create a new branch for your changes:
@@ -27,6 +27,14 @@ First of all, thank you for your interest in contributing to **irc.Brika.net**! 
 
 ## How to Contribute
 
+### Open an Issue Before Starting
+
+Before beginning work, search the existing issues and open a new issue if one
+does not already cover your proposed change. Describe the problem or idea and
+the approach you have in mind, then wait for maintainer feedback before
+implementing it. This helps avoid duplicated effort and ensures the change
+fits the project's goals.
+
 ### Reporting Bugs
 
 - Check existing issues before opening a new one.
@@ -38,7 +46,7 @@ First of all, thank you for your interest in contributing to **irc.Brika.net**! 
 
 - Explain the proposed feature and its purpose.
 - Describe how it would improve the server.
-- Open an issue to discuss significant changes before implementing them.
+- Use the issue discussion to agree on the scope before implementation.
 
 ### Submitting Changes
 
