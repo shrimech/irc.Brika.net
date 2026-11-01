@@ -114,7 +114,10 @@ void Authentification::NICK(int fd, std::map<int, Client>& clientBuffers, const 
         const std::string oldPrefix = ":" + self.getNickname() + "!"
             + self.getUsername() + "@localhost";
         setNickname(nickname);
-        self.sendMessage(oldPrefix + " NICK :" + nickname + "\r\n");
+        const std::string message = oldPrefix + " NICK :" + nickname + "\r\n";
+        for (auto& entry : clientBuffers)
+            if (entry.second.isAuthenticated())
+                entry.second.sendMessage(message);
         return;
     }
 
