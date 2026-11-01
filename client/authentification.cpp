@@ -1,7 +1,6 @@
 #include "authentification.hpp"
 #include "client.hpp"
 #include <algorithm>
-#include <cctype>
 
 Authentification::Authentification() : _authenticated(false) , _password(""), _nickname(""), _username("") {}
 
@@ -60,11 +59,17 @@ static bool isValidNickname(const std::string& nickname) {
             || ch == '_' || ch == '^' || ch == '{' || ch == '|'
             || ch == '}';
     };
+    const auto isAsciiLetter = [](unsigned char ch) {
+        return (ch >= 'A' && ch <= 'Z') || (ch >= 'a' && ch <= 'z');
+    };
+    const auto isAsciiDigit = [](unsigned char ch) {
+        return ch >= '0' && ch <= '9';
+    };
     const auto first = static_cast<unsigned char>(nickname.front());
-    if (!std::isalpha(first) && !isSpecial(first))
+    if (!isAsciiLetter(first) && !isSpecial(first))
         return false;
     return std::ranges::all_of(nickname, [&](unsigned char ch) {
-        return std::isalnum(ch) || isSpecial(ch) || ch == '-';
+        return isAsciiLetter(ch) || isAsciiDigit(ch) || isSpecial(ch) || ch == '-';
     });
 }
 
@@ -77,7 +82,9 @@ static unsigned char foldNicknameCharacter(unsigned char ch) {
         return '|';
     if (ch == '^')
         return '~';
-    return static_cast<unsigned char>(std::tolower(ch));
+    if (ch >= 'A' && ch <= 'Z')
+        return static_cast<unsigned char>(ch - 'A' + 'a');
+    return ch;
 }
 
 static bool sameNickname(const std::string& left, const std::string& right) {

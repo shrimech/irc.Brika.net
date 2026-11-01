@@ -50,14 +50,20 @@ static bool handleClientNegotiation(Client& client, const Command& command) {
         client.sendMessage(":irc.Brika.net 461 " + target + " CAP :Not enough parameters\r\n");
         return true;
     }
-    if (command.params[0] == "LS")
+    std::string subcommand = command.params[0];
+    std::ranges::transform(subcommand, subcommand.begin(), [](unsigned char ch) {
+        return static_cast<char>(std::toupper(ch));
+    });
+    if (subcommand == "LS")
         client.sendMessage(":irc.Brika.net CAP " + target + " LS :\r\n");
-    else if (command.params[0] == "LIST")
+    else if (subcommand == "LIST")
         client.sendMessage(":irc.Brika.net CAP " + target + " LIST :\r\n");
-    else if (command.params[0] == "REQ") {
+    else if (subcommand == "REQ") {
         const std::string requested = command.params.size() > 1 ? command.params[1] : "";
         client.sendMessage(":irc.Brika.net CAP " + target + " NAK :" + requested + "\r\n");
-    }
+    } else if (subcommand != "END")
+        client.sendMessage(":irc.Brika.net 410 " + target + " " + command.params[0]
+            + " :Invalid CAP subcommand\r\n");
     return true;
 }
 

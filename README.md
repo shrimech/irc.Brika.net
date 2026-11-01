@@ -57,6 +57,33 @@ Example:
 ./ircserv 6667 mypassword
 ```
 
+### Client registration
+
+Clients register by sending a valid `PASS`, `NICK`, and `USER` command. The
+commands may be sent in any order; registration completes after all three have
+been accepted:
+
+```irc
+PASS mypassword
+NICK mynickname
+USER myusername 0 * :My Real Name
+```
+
+Nicknames must be 1–30 ASCII characters, begin with a letter or an IRC
+nickname-special character (`[]\`_^{}|`), and may contain letters, digits,
+hyphens, and those special characters after the first character. Nicknames are
+unique using IRC case mapping. The username must be non-empty, and `USER` must
+include its four standard parameters.
+
+Irssi can send these registration commands automatically when connecting:
+
+```text
+/connect <host> <port> <password>
+```
+
+`PASS` is sent over plain TCP. The server does not currently provide TLS or
+SASL, so do not use this password over an untrusted network.
+
 ### Connect
 
 If the server is running locally:
