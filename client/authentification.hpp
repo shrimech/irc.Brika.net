@@ -31,7 +31,8 @@ public:
 
     void NICK(int fd, std::map<int, Client>& clientBuffers, const std::string& nickname);
     void USER(int fd, std::map<int, Client>& clientBuffers, const std::string& username);
-    void PASS(int fd, const std::string &password, const std::string &serv_pass);
+    void PASS(int fd, std::map<int, Client>& clientBuffers,
+        const std::string& password, const std::string& serv_pass);
 
 };
 
