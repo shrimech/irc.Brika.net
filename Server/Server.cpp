@@ -8,6 +8,8 @@
 #include <stdexcept>
 #include <sys/socket.h>
 #include <unistd.h>
+#include <algorithm>
+#include <utility>
 
 static volatile std::sig_atomic_t g_shutdown_requested = 0;
 
@@ -16,7 +18,7 @@ void Server::signalHandler(int sig) {
     g_shutdown_requested = 1;
 }
 
-Server::Server(int port, std::string password) : _port(port), _serverSocket(-1), _serverName("irc.Brika.net"), _password(password) {}
+Server::Server(int port, std::string password) : _port(port), _serverSocket(-1), _serverName("irc.Brika.net"), _password(std::move(password)) {}
 
 std::string Server::getName() const {
     return _serverName;
@@ -24,9 +26,9 @@ std::string Server::getName() const {
 
 Server::~Server() {
     bool serverSocketClosed = false;
-    for (size_t i = 0; i < _pollfds.size(); i++) {
-        close(_pollfds[i].fd);
-        if (_pollfds[i].fd == _serverSocket)
+    for (const auto& descriptor : _pollfds) {
+        close(descriptor.fd);
+        if (descriptor.fd == _serverSocket)
             serverSocketClosed = true;
     }
     if (_serverSocket != -1 && !serverSocketClosed) {
@@ -70,7 +72,7 @@ void Server::Init() {
 void Server::Run() {
     ChannelRegistry channels;
     while (!g_shutdown_requested) {
-        int ready = poll(&_pollfds[0], _pollfds.size(), -1);
+        int ready = poll(_pollfds.data(), _pollfds.size(), -1);
         if (ready < 0) {
             if (errno == EINTR)
                 continue;
@@ -108,15 +110,13 @@ void Server::Run() {
 }
 
 bool Server::hasPollFd(int fd) const {
-    for (size_t i = 0; i < _pollfds.size(); ++i) {
-        if (_pollfds[i].fd == fd)
-            return true;
-    }
-    return false;
+    return std::ranges::any_of(_pollfds, [fd](const pollfd& descriptor) {
+        return descriptor.fd == fd;
+    });
 }
 
 void Server::AcceptNewClient() {
-    int client_fd = accept(_serverSocket, NULL, NULL);
+    int client_fd = accept(_serverSocket, nullptr, nullptr);
     if (client_fd != -1) {
         int flags = fcntl(client_fd, F_GETFL, 0);
         if (flags < 0 || fcntl(client_fd, F_SETFL, flags | O_NONBLOCK) < 0) {

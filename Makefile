@@ -3,7 +3,7 @@ BUILD_DIR := build
 
 CXX ?= c++
 CPPFLAGS ?=
-CXXFLAGS ?= -Wall -Wextra -Werror -std=c++98
+CXXFLAGS ?= -Wall -Wextra -Werror -std=c++20
 LDFLAGS ?=
 LDLIBS ?=
 

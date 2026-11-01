@@ -1,4 +1,5 @@
 #include "ChannelCommands.hpp"
+#include <algorithm>
 
 void replyMsg(const std::string& rcode, const std::string& msg, Client& client)
 {
@@ -12,10 +13,8 @@ std::string clientPrefix(const Client& client) {
 
 Client* findClientByNick(std::map<int, Client>& clients, const std::string& nick)
 {
-	for (std::map<int, Client>::iterator it = clients.begin(); it != clients.end(); it++)
-	{
-		if (it->second.getNickname() == nick)
-			return &it->second;
-	}
-	return NULL;
+	const auto it = std::ranges::find_if(clients, [&nick](auto& entry) {
+		return entry.second.getNickname() == nick;
+	});
+	return it == clients.end() ? nullptr : &it->second;
 }

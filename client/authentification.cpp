@@ -1,11 +1,12 @@
 #include "authentification.hpp"
 #include "client.hpp"
+#include <algorithm>
 #include <iostream>
 #include <sys/socket.h>
 
 Authentification::Authentification() : _authenticated(false) , _password(""), _nickname(""), _username("") {}
 
-Authentification::~Authentification() {}
+Authentification::~Authentification() = default;
 //--------------------------------------------------------
 
 std::string Authentification::getPassword() const {
@@ -47,25 +48,17 @@ void Authentification::setAuthenticated() {
 }
 // ------------- authentication commands ---------------------
 
-typedef std::string (Client::*IdentifierGetter)() const;
+using IdentifierGetter = std::string (Client::*)() const;
 
 static std::string makeUniqueIdentifier(int fd, const std::string& identifier,
     const std::map<int, Client>& clientBuffers, IdentifierGetter getter) {
     std::string candidate = identifier;
 
-    while (true) {
-        bool taken = false;
-        for (std::map<int, Client>::const_iterator it = clientBuffers.begin();
-             it != clientBuffers.end(); ++it) {
-            if (it->first != fd && (it->second.*getter)() == candidate) {
-                taken = true;
-                break;
-            }
-        }
-        if (!taken)
-            return candidate;
+    while (std::ranges::any_of(clientBuffers, [fd, &candidate, getter](const auto& entry) {
+        return entry.first != fd && (entry.second.*getter)() == candidate;
+    }))
         candidate += "_";
-    }
+    return candidate;
 }
 
 void Authentification::NICK(int fd, std::map<int, Client>& clientBuffers, const std::string &nickname) {
