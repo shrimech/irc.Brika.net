@@ -1,21 +1,19 @@
 #include "Server/Server.hpp"
+#include <charconv>
 #include <csignal>
-#include <cstdlib>
-#include <cctype>
 #include <iostream>
 #include <stdexcept>
+#include <string_view>
+#include <system_error>
 
 static bool isValidPort(const char* str, int& port) {
-    if (!str || !str[0])
+    if (!str || *str == '\0')
         return false;
-    
-    for (int i = 0; str[i]; i++) {
-        if (!std::isdigit(str[i]))
-            return false;
-    }
-    
-    port = std::atoi(str);
-    return port >= 1 && port <= 65535;
+
+    const std::string_view input(str);
+    const auto [end, error] = std::from_chars(input.data(), input.data() + input.size(), port);
+    return error == std::errc{} && end == input.data() + input.size()
+        && port >= 1 && port <= 65535;
 }
 
 int main(int argc, char **argv) {

@@ -21,12 +21,12 @@ class Channel
 		bool _topicRestricted;
 		bool _hasKey;
 		bool _hasUserLimit;
-		Channel(const Channel& other);
-		Channel& operator=(const Channel& other);
 
 	public:
 		Channel(const std::string& name);
 		~Channel();
+		Channel(const Channel&) = delete;
+		Channel& operator=(const Channel&) = delete;
 
 		std::string getName() const;
 

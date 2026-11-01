@@ -17,7 +17,7 @@ void Channel::removeMember(int fd) {
 	_invited.erase(fd);
 }
 bool Channel::isMember(int fd) const {
-	return _members.find(fd) != _members.end();
+	return _members.contains(fd);
 }
 size_t Channel::getMemberCount() const {
 	return _members.size();
@@ -29,7 +29,7 @@ void Channel::removeOperator(int fd) {
 	_operators.erase(fd);
 }
 bool Channel::isOperator(int fd) const {
-	return _operators.find(fd) != _operators.end();
+	return _operators.contains(fd);
 }
 
 
@@ -37,7 +37,7 @@ void Channel::addInvite(int fd){
 	_invited.insert(fd);
 }
 bool Channel::isInvited(int fd) const {
-	return _invited.find(fd) != _invited.end();
+	return _invited.contains(fd);
 }
 void Channel::removeInvite(int fd) {
 	_invited.erase(fd);
@@ -104,24 +104,21 @@ int Channel::getUserLimit() const {
 std::string Channel::getMembersName() const
 {
 	std::string names;
-	std::map<int, Client*>::const_iterator it = _members.begin();
-	for (; it != _members.end(); it++)
-	{
-		if (isOperator(it->first))
-			names += "@";
-		names += it->second->getNickname();
-		if (it != --(_members.end()))
+	bool first = true;
+	for (const auto& [fd, client] : _members) {
+		if (!first)
 			names += " ";
+		if (isOperator(fd))
+			names += "@";
+		names += client->getNickname();
+		first = false;
 	}
 	return names;
 }
 
 void Channel::broadCast(const std::string& msg, int excludeFD) const
 {
-	std::map<int, Client*>::const_iterator it = _members.begin();
-	for (; it != _members.end(); it++)
-	{
-		if (it->first != excludeFD)
-			it->second->sendMessage(msg);
-	}
+	for (const auto& [fd, client] : _members)
+		if (fd != excludeFD)
+			client->sendMessage(msg);
 }

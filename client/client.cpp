@@ -4,7 +4,7 @@
 
 Client::Client() : Authentification(), fd(-1) {}
 
-Client::~Client() {}
+Client::~Client() = default;
 
 void Client::setFd(int fd) {
     this->fd = fd;
