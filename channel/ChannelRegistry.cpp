@@ -1,54 +1,34 @@
 #include "ChannelRegistry.hpp"
-#include <memory>
 
-ChannelRegistry::ChannelRegistry() {}
+ChannelRegistry::ChannelRegistry() = default;
 
-ChannelRegistry::~ChannelRegistry() {
-	while (!_channels.empty()) {
-		delete _channels.begin()->second;
-		_channels.erase(_channels.begin());
-	}
-}
+ChannelRegistry::~ChannelRegistry() = default;
 
 Channel* ChannelRegistry::findChannel(const std::string& name)
 {
-	std::map<std::string, Channel*>::iterator it = _channels.find(name);
-	if (it == _channels.end())
-		return NULL;
-	return it->second;
+	const auto it = _channels.find(name);
+	return it == _channels.end() ? nullptr : it->second.get();
 }
 
 Channel* ChannelRegistry::findOrCreate(const std::string& name)
 {
-	Channel* channel = findChannel(name);
-	if(channel != NULL)
+	if (Channel* channel = findChannel(name))
 		return channel;
-	std::unique_ptr<Channel> ownedChannel(new Channel(name));
-	channel = ownedChannel.get();
-	_channels[name] = channel;
-	ownedChannel.release();
-	return channel;
+	return _channels.emplace(name, std::make_unique<Channel>(name)).first->second.get();
 }
 
 void ChannelRegistry::removeChannel(const std::string& name)
 {
-	std::map<std::string, Channel*>::iterator it = _channels.find(name);
-	if (it == _channels.end())
-		return;
-	delete it->second;
-	_channels.erase(it);
+	_channels.erase(name);
 }
 
 void ChannelRegistry::removeClientFromAllChannels(int fd)
 {
-	std::map<std::string, Channel*>::iterator it = _channels.begin();
-	while (it != _channels.end()) {
+	for (auto it = _channels.begin(); it != _channels.end();) {
 		it->second->removeMember(fd);
-		if (it->second->getMemberCount() == 0) {
-			delete it->second;
-			_channels.erase(it++);
-		} else {
+		if (it->second->getMemberCount() == 0)
+			it = _channels.erase(it);
+		else
 			++it;
-		}
 	}
 }

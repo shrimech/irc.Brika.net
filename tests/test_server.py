@@ -242,6 +242,32 @@ class IrcServerTests(unittest.TestCase):
         reply = self.receive_until(client, b"Commands: !quiz")
         self.assertIn(b"Commands: !quiz (next question)", reply)
 
+    def test_quiz_bot_validates_answer_number(self):
+        client = self.register("bot_answer_user")
+        client.sendall(b"PRIVMSG QuizBot :!quiz\r\n")
+        question = self.receive_until(client, b"What is the capital of Morocco?")
+        self.assertIn(b"What is the capital of Morocco?", question)
+
+        client.sendall(b"PRIVMSG QuizBot :!answer 2extra\r\n")
+        invalid = self.receive_until(client, b"Wrong answer!")
+        self.assertIn(b"Wrong answer!", invalid)
+
+        client.sendall(b"PRIVMSG QuizBot :!answer 2\r\n")
+        correct = self.receive_until(client, b"CORRECT!")
+        self.assertIn(b"CORRECT!", correct)
+
+    def test_rejects_invalid_port_values(self):
+        for port in ("65536", "999999999999999999999999", "123abc"):
+            result = subprocess.run(
+                [SERVER, port, PASSWORD],
+                cwd=ROOT,
+                capture_output=True,
+                text=True,
+                timeout=2,
+            )
+            self.assertNotEqual(result.returncode, 0)
+            self.assertIn("Port must be a number", result.stderr)
+
 
 PROTOCOL_CASES = [
     ("join_requires_channel", "none", "JOIN", " 461 {nick} JOIN", False),
