@@ -1,24 +1,70 @@
-name: C++ CI
+name: CI
 
 on:
   push:
   pull_request:
   workflow_dispatch:
 
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
-  build:
-    runs-on: ubuntu-latest
-    timeout-minutes: 10
+  build-and-test:
+    name: ${{ matrix.compiler }} / Ubuntu 24.04
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - compiler: GCC
+            cxx: g++
+          - compiler: Clang
+            cxx: clang++
+    env:
+      CXX: ${{ matrix.cxx }}
 
     steps:
       - name: Check out repository
         uses: actions/checkout@v4
+        with:
+          persist-credentials: false
 
       - name: Install dependencies
         run: sh scripts/install-dependencies.sh
 
-      - name: Build with C++20
+      - name: Install Clang
+        if: matrix.cxx == 'clang++'
+        run: sudo apt-get install -y --no-install-recommends clang
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Report toolchain versions
+        run: |
+          $CXX --version
+          python --version
+          make --version
+
+      - name: Build
         run: make -j2
 
       - name: Run integration tests
-        run: PYTHONDONTWRITEBYTECODE=1 python3 -m unittest discover -s tests -v
+        shell: bash
+        run: |
+          PYTHONDONTWRITEBYTECODE=1 python3 -u -m unittest discover -s tests -v 2>&1 | tee test-results.txt
+
+      - name: Upload integration test output
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.compiler }}-integration-test-output
+          path: test-results.txt
+          if-no-files-found: warn
+          retention-days: 14

@@ -52,6 +52,7 @@ class IrcServerTests(unittest.TestCase):
 
     def setUp(self):
         self.clients = []
+        self.received = {}
 
     def tearDown(self):
         for client in self.clients:
@@ -59,13 +60,13 @@ class IrcServerTests(unittest.TestCase):
 
     def connect_client(self):
         client = socket.create_connection(("127.0.0.1", self.port), timeout=2)
-        client.settimeout(2)
+        client.settimeout(0.5)
         self.clients.append(client)
+        self.received[client] = b""
         return client
 
-    @staticmethod
-    def receive_until(client, expected):
-        received = b""
+    def receive_until(self, client, expected):
+        received = self.received[client]
         deadline = time.time() + 3
         while expected not in received and time.time() < deadline:
             try:
@@ -75,6 +76,11 @@ class IrcServerTests(unittest.TestCase):
             if not chunk:
                 break
             received += chunk
+        if expected in received:
+            marker_end = received.index(expected) + len(expected)
+            self.received[client] = received[marker_end:]
+            return received
+        self.received[client] = b""
         return received
 
     def register(self, nickname):
@@ -87,6 +93,17 @@ class IrcServerTests(unittest.TestCase):
         welcome = self.receive_until(client, b" 001 " + nickname.encode() + b" ")
         self.assertIn(b" 001 " + nickname.encode() + b" ", welcome)
         return client
+
+    def join_channel(self, client, nickname, channel):
+        client.sendall(("JOIN " + channel + "\r\n").encode())
+        reply = self.receive_until(
+            client, (" 366 " + nickname + " " + channel + " ").encode()
+        )
+        self.assertIn((" 366 " + nickname + " " + channel + " ").encode(), reply)
+        reply += self.receive_until(
+            client, (" 331 " + nickname + " " + channel + " ").encode()
+        )
+        return reply
 
     def assert_protocol_case(self, index, setup, command, expected, register_target):
         channel = "#case" + str(index)
@@ -148,6 +165,74 @@ class IrcServerTests(unittest.TestCase):
         self.assertIn(b" 005 irssi_user CHANTYPES=# NICKLEN=30", response)
         self.assertIn(b" 422 irssi_user :MOTD File is missing", response)
         self.assertEqual(response.count(b" 001 irssi_user "), 1)
+
+    def test_registration_can_arrive_in_any_order_and_waits_for_all_fields(self):
+        client = self.connect_client()
+        client.sendall(b"NICK order_test\r\nUSER order_user 0 * :CI Test\r\n")
+        time.sleep(0.05)
+        client.settimeout(0.1)
+        with self.assertRaises(socket.timeout):
+            client.recv(4096)
+
+        client.settimeout(2)
+        client.sendall(b"PASS ci-test-password\r\n")
+        welcome = self.receive_until(client, b" 422 order_test ")
+        self.assertIn(b" 001 order_test ", welcome)
+        self.assertEqual(welcome.count(b" 001 order_test "), 1)
+
+    def test_pass_requires_a_password_argument(self):
+        client = self.connect_client()
+        client.sendall(b"PASS\r\n")
+        reply = self.receive_until(client, b" 461 * PASS ")
+        self.assertIn(b":irc.Brika.net 461 * PASS :Not enough parameters", reply)
+        self.assertNotIn(b" 001 ", reply)
+
+    def test_nick_requires_a_nickname_argument(self):
+        client = self.connect_client()
+        client.sendall(b"NICK\r\n")
+        reply = self.receive_until(client, b" 431 * ")
+        self.assertIn(b":irc.Brika.net 431 * :No nickname given", reply)
+
+    def test_rejects_all_invalid_nickname_character_positions(self):
+        client = self.connect_client()
+        client.sendall(
+            b"PASS ci-test-password\r\n"
+            b"NICK -leading\r\n"
+            b"NICK bad!nick\r\n"
+            b"NICK bad.nick\r\n"
+            b"NICK bad~nick\r\n"
+        )
+        reply = self.receive_until(client, b" 432 * bad~nick ")
+        self.assertIn(b" 432 * -leading :Erroneous nickname", reply)
+        self.assertIn(b" 432 * bad!nick :Erroneous nickname", reply)
+        self.assertIn(b" 432 * bad.nick :Erroneous nickname", reply)
+        self.assertIn(b" 432 * bad~nick :Erroneous nickname", reply)
+        self.assertNotIn(b" 001 ", reply)
+
+    def test_accepts_allowed_irc_nickname_special_characters(self):
+        client = self.connect_client()
+        nickname = "[User]^_{}|\\`-9"
+        client.sendall(
+            b"PASS ci-test-password\r\n"
+            + ("NICK " + nickname + "\r\n").encode()
+            + b"USER allowed_user 0 * :CI Test\r\n"
+        )
+        welcome = self.receive_until(client, (" 001 " + nickname + " ").encode())
+        self.assertIn((" 001 " + nickname + " ").encode(), welcome)
+
+    def test_nickname_special_characters_follow_irc_case_mapping(self):
+        self.register("[mapping]")
+        client = self.connect_client()
+        client.sendall(
+            b"PASS ci-test-password\r\n"
+            b"NICK {MAPPING}\r\n"
+            b"USER mapping_user 0 * :CI Test\r\n"
+        )
+        reply = self.receive_until(client, b" 433 * {MAPPING} ")
+        self.assertIn(
+            b" 433 * {MAPPING} :Nickname is already in use",
+            reply,
+        )
 
     def test_rejects_duplicate_nickname_with_standard_numeric(self):
         self.register("duplicate")
@@ -256,6 +341,26 @@ class IrcServerTests(unittest.TestCase):
             reply,
         )
 
+    def test_registered_client_can_change_nickname(self):
+        client = self.register("old_nickname")
+        observer = self.register("nick_observer")
+        client.sendall(b"NICK new_nickname\r\n")
+        own_reply = self.receive_until(client, b"NICK :new_nickname")
+        observer_reply = self.receive_until(observer, b"NICK :new_nickname")
+        expected = b":old_nickname!old_nickname@localhost NICK :new_nickname"
+        self.assertIn(expected, own_reply)
+        self.assertIn(expected, observer_reply)
+
+    def test_registered_client_cannot_change_to_a_taken_nickname(self):
+        self.register("taken_nick")
+        client = self.register("change_nick_user")
+        client.sendall(b"NICK taken_nick\r\n")
+        reply = self.receive_until(client, b" 433 change_nick_user taken_nick ")
+        self.assertIn(
+            b" 433 change_nick_user taken_nick :Nickname is already in use",
+            reply,
+        )
+
     def test_answers_ping_before_registration(self):
         client = self.connect_client()
         client.sendall(b"PING :registration-check\r\n")
@@ -264,6 +369,21 @@ class IrcServerTests(unittest.TestCase):
             b":irc.Brika.net PONG irc.Brika.net :registration-check",
             reply,
         )
+
+    def test_answers_ping_after_registration(self):
+        client = self.register("ping_registered")
+        client.sendall(b"PING :after-registration-token\r\n")
+        reply = self.receive_until(client, b"PONG irc.Brika.net :after-registration-token")
+        self.assertIn(
+            b":irc.Brika.net PONG irc.Brika.net :after-registration-token",
+            reply,
+        )
+
+    def test_rejects_commands_before_registration(self):
+        client = self.connect_client()
+        client.sendall(b"PRIVMSG anyone :hello\r\n")
+        reply = self.receive_until(client, b" 451 * ")
+        self.assertIn(b":irc.Brika.net 451 * :You have not registered", reply)
 
     def test_server_accepts_clients_after_disconnect(self):
         first = self.register("disconnecting")
@@ -308,6 +428,197 @@ class IrcServerTests(unittest.TestCase):
         sender.sendall(b"PRIVMSG #ci-room :hello from CI\r\n")
         message = self.receive_until(receiver, b"PRIVMSG #ci-room :hello from CI")
         self.assertIn(b":sender!sender@localhost PRIVMSG #ci-room :hello from CI", message)
+
+    def test_channel_message_preserves_spaces_and_is_not_echoed_to_sender(self):
+        sender = self.register("multiword_sender")
+        receiver = self.register("multiword_receiver")
+        self.join_channel(sender, "multiword_sender", "#multiword")
+        self.join_channel(receiver, "multiword_receiver", "#multiword")
+        self.receive_until(
+            sender, b":multiword_receiver!multiword_receiver@localhost JOIN #multiword"
+        )
+
+        sender.sendall(b"privmsg #multiword :multiple words stay together\r\n")
+        delivered = self.receive_until(receiver, b"multiple words stay together")
+        self.assertIn(
+            b":multiword_sender!multiword_sender@localhost PRIVMSG #multiword :multiple words stay together",
+            delivered,
+        )
+        sender.settimeout(0.1)
+        with self.assertRaises(socket.timeout):
+            sender.recv(4096)
+
+    def test_join_broadcasts_join_to_existing_members(self):
+        first = self.register("join_first")
+        second = self.register("join_second")
+        self.join_channel(first, "join_first", "#join-broadcast")
+
+        second.sendall(b"JOIN #join-broadcast\r\n")
+        second_reply = self.receive_until(second, b" 366 join_second #join-broadcast ")
+        first_reply = self.receive_until(first, b":join_second!join_second@localhost JOIN #join-broadcast")
+        self.assertIn(b" 353 join_second = #join-broadcast ", second_reply)
+        self.assertIn(
+            b":join_second!join_second@localhost JOIN #join-broadcast",
+            first_reply,
+        )
+
+    def test_joining_same_channel_twice_does_not_duplicate_membership(self):
+        client = self.register("join_once")
+        self.join_channel(client, "join_once", "#join-once")
+        client.sendall(b"JOIN #join-once\r\n")
+        client.settimeout(0.1)
+        with self.assertRaises(socket.timeout):
+            client.recv(4096)
+
+    def test_channel_key_rejects_missing_or_incorrect_key(self):
+        owner = self.register("key_owner")
+        joiner = self.register("key_joiner")
+        self.join_channel(owner, "key_owner", "#keyed")
+        owner.sendall(b"MODE #keyed +k secret\r\n")
+        self.receive_until(owner, b" MODE #keyed +k secret")
+
+        joiner.sendall(b"JOIN #keyed\r\n")
+        missing = self.receive_until(joiner, b" 475 key_joiner #keyed ")
+        self.assertIn(b" 475 key_joiner #keyed :Cannot join channel (+k)", missing)
+
+        joiner.sendall(b"JOIN #keyed wrong\r\n")
+        wrong = self.receive_until(joiner, b" 475 key_joiner #keyed ")
+        self.assertIn(b" 475 key_joiner #keyed :Cannot join channel (+k)", wrong)
+
+        joiner.sendall(b"JOIN #keyed secret\r\n")
+        joined = self.receive_until(joiner, b" 366 key_joiner #keyed ")
+        self.assertIn(b" 366 key_joiner #keyed ", joined)
+
+    def test_invite_only_channel_allows_invited_client(self):
+        owner = self.register("invite_owner")
+        invited = self.register("invite_target")
+        self.join_channel(owner, "invite_owner", "#invite-flow")
+        owner.sendall(b"MODE #invite-flow +i\r\n")
+        self.receive_until(owner, b" MODE #invite-flow +i")
+
+        invited.sendall(b"JOIN #invite-flow\r\n")
+        denied = self.receive_until(invited, b" 473 invite_target #invite-flow ")
+        self.assertIn(
+            b" 473 invite_target #invite-flow :Cannot join channel (+i)",
+            denied,
+        )
+
+        owner.sendall(b"INVITE invite_target #invite-flow\r\n")
+        invite_reply = self.receive_until(owner, b" 341 invite_owner invite_target #invite-flow")
+        delivered = self.receive_until(invited, b" INVITE invite_target :#invite-flow")
+        self.assertIn(b" 341 invite_owner invite_target #invite-flow", invite_reply)
+        self.assertIn(
+            b":invite_owner!invite_owner@localhost INVITE invite_target :#invite-flow",
+            delivered,
+        )
+
+        invited.sendall(b"JOIN #invite-flow\r\n")
+        joined = self.receive_until(invited, b" 366 invite_target #invite-flow ")
+        self.assertIn(b" 366 invite_target #invite-flow ", joined)
+
+    def test_channel_user_limit_blocks_additional_members(self):
+        owner = self.register("limit_owner")
+        second = self.register("limit_second")
+        third = self.register("limit_third")
+        self.join_channel(owner, "limit_owner", "#limited")
+        owner.sendall(b"MODE #limited +l 2\r\n")
+        self.receive_until(owner, b" MODE #limited +l 2")
+        self.join_channel(second, "limit_second", "#limited")
+
+        third.sendall(b"JOIN #limited\r\n")
+        denied = self.receive_until(third, b" 471 limit_third #limited ")
+        self.assertIn(
+            b" 471 limit_third #limited :Cannot join channel (+l)",
+            denied,
+        )
+
+    def test_mode_query_reports_default_and_updated_modes(self):
+        client = self.register("mode_query")
+        self.join_channel(client, "mode_query", "#mode-query")
+        client.sendall(b"MODE #mode-query\r\n")
+        default = self.receive_until(client, b" 324 mode_query #mode-query ")
+        self.assertIn(b" 324 mode_query #mode-query +t", default)
+
+        client.sendall(b"MODE #mode-query +i\r\n")
+        self.receive_until(client, b" MODE #mode-query +i")
+        client.sendall(b"MODE #mode-query\r\n")
+        updated = self.receive_until(client, b" 324 mode_query #mode-query ")
+        self.assertIn(b" 324 mode_query #mode-query +it", updated)
+
+    def test_operator_mode_grants_and_revokes_topic_privileges(self):
+        owner = self.register("promote_owner")
+        member = self.register("promote_member")
+        self.join_channel(owner, "promote_owner", "#promotion")
+        self.join_channel(member, "promote_member", "#promotion")
+
+        owner.sendall(b"MODE #promotion +o promote_member\r\n")
+        promoted = self.receive_until(owner, b" MODE #promotion +o promote_member")
+        self.assertIn(b" MODE #promotion +o promote_member", promoted)
+        member.sendall(b"TOPIC #promotion :member topic\r\n")
+        topic = self.receive_until(owner, b" TOPIC #promotion :member topic")
+        self.assertIn(b" TOPIC #promotion :member topic", topic)
+
+        owner.sendall(b"MODE #promotion -o promote_member\r\n")
+        self.receive_until(owner, b" MODE #promotion -o promote_member")
+        member.sendall(b"TOPIC #promotion :denied topic\r\n")
+        denied = self.receive_until(member, b" 482 promote_member #promotion ")
+        self.assertIn(
+            b" 482 promote_member #promotion :You're not a channel operator",
+            denied,
+        )
+
+    def test_topic_updates_are_broadcast_to_all_channel_members(self):
+        owner = self.register("topic_broadcast_owner")
+        member = self.register("topic_broadcast_member")
+        self.join_channel(owner, "topic_broadcast_owner", "#topic-broadcast")
+        self.join_channel(member, "topic_broadcast_member", "#topic-broadcast")
+
+        owner.sendall(b"TOPIC #topic-broadcast :shared topic\r\n")
+        owner_reply = self.receive_until(owner, b" TOPIC #topic-broadcast :shared topic")
+        member_reply = self.receive_until(member, b" TOPIC #topic-broadcast :shared topic")
+        expected = (
+            b":topic_broadcast_owner!topic_broadcast_owner@localhost "
+            b"TOPIC #topic-broadcast :shared topic"
+        )
+        self.assertIn(expected, owner_reply)
+        self.assertIn(expected, member_reply)
+
+    def test_kick_notifies_channel_and_removes_target_membership(self):
+        owner = self.register("kick_owner")
+        target = self.register("kick_target")
+        observer = self.register("kick_observer")
+        for client, nick in (
+            (owner, "kick_owner"),
+            (target, "kick_target"),
+            (observer, "kick_observer"),
+        ):
+            self.join_channel(client, nick, "#kick-flow")
+
+        owner.sendall(b"KICK #kick-flow kick_target :test removal\r\n")
+        expected = (
+            b":kick_owner!kick_owner@localhost KICK #kick-flow "
+            b"kick_target :test removal"
+        )
+        self.assertIn(expected, self.receive_until(owner, expected))
+        self.assertIn(expected, self.receive_until(target, expected))
+        self.assertIn(expected, self.receive_until(observer, expected))
+
+        target.sendall(b"PRIVMSG #kick-flow :not a member\r\n")
+        rejected = self.receive_until(target, b"404 kick_target #kick-flow ")
+        self.assertIn(b"404 kick_target #kick-flow :Cannot send to channel", rejected)
+
+    def test_kick_without_comment_uses_requesting_nickname(self):
+        owner = self.register("kick_default_owner")
+        target = self.register("kick_default_target")
+        self.join_channel(owner, "kick_default_owner", "#kick-default")
+        self.join_channel(target, "kick_default_target", "#kick-default")
+
+        owner.sendall(b"KICK #kick-default kick_default_target\r\n")
+        expected = (
+            b":kick_default_owner!kick_default_owner@localhost KICK #kick-default "
+            b"kick_default_target :kick_default_owner"
+        )
+        self.assertIn(expected, self.receive_until(target, expected))
 
     def test_sends_private_message_to_nickname(self):
         sender = self.register("private_sender")
@@ -380,6 +691,42 @@ class IrcServerTests(unittest.TestCase):
         client.sendall(b"PRIVMSG QuizBot :!answer 2\r\n")
         correct = self.receive_until(client, b"CORRECT!")
         self.assertIn(b"CORRECT!", correct)
+
+    def test_quiz_bot_rejects_answer_before_quiz_starts(self):
+        client = self.register("bot_before_quiz")
+        client.sendall(b"PRIVMSG QuizBot :!answer 2\r\n")
+        reply = self.receive_until(client, b"Type !quiz to start")
+        self.assertIn(b"Type !quiz to start a question first!", reply)
+
+    def test_quiz_bot_wrong_answer_keeps_current_question(self):
+        client = self.register("bot_wrong_answer")
+        client.sendall(b"PRIVMSG QuizBot :!quiz\r\n")
+        self.receive_until(client, b"What is the capital of Morocco?")
+
+        client.sendall(b"PRIVMSG QuizBot :!answer 1\r\n")
+        wrong = self.receive_until(client, b"Wrong answer!")
+        self.assertIn(b"Wrong answer!", wrong)
+
+        client.sendall(b"PRIVMSG QuizBot :!quiz\r\n")
+        same_question = self.receive_until(client, b"What is the capital of Morocco?")
+        self.assertIn(b"What is the capital of Morocco?", same_question)
+
+    def test_quiz_bot_advances_to_next_question_after_correct_answer(self):
+        client = self.register("bot_advance")
+        client.sendall(b"PRIVMSG QuizBot :!quiz\r\n")
+        self.receive_until(client, b"What is the capital of Morocco?")
+        client.sendall(b"PRIVMSG QuizBot :!answer 2\r\n")
+        self.assertIn(b"CORRECT!", self.receive_until(client, b"CORRECT!"))
+
+        client.sendall(b"PRIVMSG QuizBot :!quiz\r\n")
+        next_question = self.receive_until(client, b"Which system call")
+        self.assertIn(b"Which system call watches multiple file descriptors", next_question)
+
+    def test_quiz_bot_handles_unknown_commands(self):
+        client = self.register("bot_unknown")
+        client.sendall(b"PRIVMSG QuizBot :!unknown\r\n")
+        reply = self.receive_until(client, b"Unknown bot command")
+        self.assertIn(b"Unknown bot command. Type !help for info.", reply)
 
     def test_rejects_invalid_port_values(self):
         for port in ("65536", "999999999999999999999999", "123abc"):
