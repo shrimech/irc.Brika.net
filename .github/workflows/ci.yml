@@ -17,7 +17,7 @@ jobs:
       - name: Install dependencies
         run: sh scripts/install-dependencies.sh
 
-      - name: Build with C++98
+      - name: Build with C++20
         run: make -j2
 
       - name: Run integration tests

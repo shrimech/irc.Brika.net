@@ -51,7 +51,7 @@ First of all, thank you for your interest in contributing to **irc.Brika.net**! 
 
 ## Development Guidelines
 
-- Use **C++98** and avoid features from newer C++ standards.
+- Use **C++20** and avoid compiler extensions that are not part of the standard.
 - Follow the existing architecture and naming conventions.
 - Keep the code readable, modular, and maintainable.
 - Handle errors and invalid client input appropriately.
@@ -89,4 +89,3 @@ Before submitting your Pull Request, make sure that:
 If you have questions, ideas, or need clarification, feel free to open an issue in the repository.
 
 Thank you for helping improve **irc.Brika.net**!
-

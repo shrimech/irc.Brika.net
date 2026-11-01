@@ -23,7 +23,7 @@ Channel* ChannelRegistry::findOrCreate(const std::string& name)
 	Channel* channel = findChannel(name);
 	if(channel != NULL)
 		return channel;
-	std::auto_ptr<Channel> ownedChannel(new Channel(name));
+	std::unique_ptr<Channel> ownedChannel(new Channel(name));
 	channel = ownedChannel.get();
 	_channels[name] = channel;
 	ownedChannel.release();

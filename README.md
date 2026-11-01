@@ -2,7 +2,7 @@
 
 > **Want to contribute?** Contributions are welcome! Please read our [Contributing Guidelines](CONTRIBUTING.md) before submitting issues or pull requests.
 
-A lightweight IRC server built with **C++98**, designed for real-time communication over TCP/IP.
+A lightweight IRC server built with **C++20**, designed for real-time communication over TCP/IP.
 
 ## Overview
 
@@ -23,7 +23,7 @@ A lightweight IRC server built with **C++98**, designed for real-time communicat
 
 ### Requirements
 
-- C++ compiler with C++98 support
+- C++ compiler with C++20 support
 - `make`
 - Python 3 to run the integration tests
 - An IRC client such as `irssi`
