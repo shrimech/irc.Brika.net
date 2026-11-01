@@ -3,60 +3,97 @@
 #include "../channel/ChannelCommands.hpp"
 #include "../channel/Channel.hpp"
 #include "../channel/ChannelRegistry.hpp"
+#include <algorithm>
+#include <cctype>
 #include <iostream>
 #include <sys/socket.h>
 
 static void authenticateClient(Client& client, std::map<int, Client>& clientBuffers,
     const std::string& serv_pass, const Command& command) {
-    if (command.command == "NICK" && command.params.size() == 1) {
-        client.NICK(client.getFd(),clientBuffers, command.params[0]); 
-    } else if ((command.command == "USER") && command.params.size() == 4) {
-        client.USER(client.getFd(),clientBuffers, command.params[0]);
+    if (command.command == "NICK") {
+        if (command.params.empty())
+            client.sendMessage(":irc.Brika.net 431 * :No nickname given\r\n");
+        else
+            client.NICK(client.getFd(), clientBuffers, command.params[0]);
+    } else if (command.command == "USER") {
+        if (command.params.size() != 4)
+            client.sendMessage(":irc.Brika.net 461 * USER :Not enough parameters\r\n");
+        else
+            client.USER(client.getFd(), clientBuffers, command.params[0]);
+    } else if (command.command == "PASS") {
+        if (command.params.size() != 1)
+            client.sendMessage(":irc.Brika.net 461 * PASS :Not enough parameters\r\n");
+        else
+            client.PASS(client.getFd(), clientBuffers, command.params[0], serv_pass);
+    } else {
+        client.sendMessage(":irc.Brika.net 451 * :You have not registered\r\n");
     }
-    else if ((command.command == "PASS") && client.getPassword() == serv_pass) {
-        std::string reply = ":irc.Brika.net 462 * :You may not reregister\r\n";
-        send(client.getFd(), reply.c_str(), reply.length(), 0);
-    }
-    else if ((command.command == "PASS") && command.params.size() == 1) {
-        client.PASS(client.getFd(), command.params[0], serv_pass);
-    }
-    else if (command.command != "NICK" && command.command != "USER" && command.command != "PASS") {
-        std::string reply = ":irc.Brika.net NOTICE AUTH :Please authenticate with PASS, NICK, and USER\r\n";
-        send(client.getFd(), reply.c_str(), reply.length(), 0);
-    }
-    
-	if (client.isAuthenticated()) {
-		std::string nick = client.getNickname();
-		std::string user = client.getUsername();
-		std::string host = "localhost";
-
-		std::string reply;
-		reply += ":irc.Brika.net 001 " + nick + " :Welcome to the Internet Relay Network " 
-				+ nick + "!" + user + "@" + host + "\r\n";
-		reply += ":irc.Brika.net 002 " + nick + " :Your host is irc.Brika.net, running version 1.0\r\n";
-		reply += ":irc.Brika.net 003 " + nick + " :This server was created today\r\n";
-		reply += ":irc.Brika.net 004 " + nick + " irc.Brika.net 1.0 o o\r\n";
-
-		std::cout << "Client " << client.getFd() << " = " << client.getUsername() 
-				<< " authenticated successfully!" << std::endl;
-		send(client.getFd(), reply.c_str(), reply.length(), 0);
-	}
 }
+
+static bool handleClientNegotiation(Client& client, const Command& command) {
+    if (command.command == "PING") {
+        if (command.params.empty()) {
+            client.sendMessage(":irc.Brika.net 409 " +
+                (client.getNickname().empty() ? "*" : client.getNickname()) +
+                " :No origin specified\r\n");
+        } else {
+            client.sendMessage(":irc.Brika.net PONG irc.Brika.net :" +
+                command.params.front() + "\r\n");
+        }
+        return true;
+    }
+    if (command.command != "CAP")
+        return false;
+
+    const std::string target = client.getNickname().empty() ? "*" : client.getNickname();
+    if (command.params.empty()) {
+        client.sendMessage(":irc.Brika.net 461 " + target + " CAP :Not enough parameters\r\n");
+        return true;
+    }
+    if (command.params[0] == "LS")
+        client.sendMessage(":irc.Brika.net CAP " + target + " LS :\r\n");
+    else if (command.params[0] == "LIST")
+        client.sendMessage(":irc.Brika.net CAP " + target + " LIST :\r\n");
+    else if (command.params[0] == "REQ") {
+        const std::string requested = command.params.size() > 1 ? command.params[1] : "";
+        client.sendMessage(":irc.Brika.net CAP " + target + " NAK :" + requested + "\r\n");
+    }
+    return true;
+}
+
+static void sendWelcome(Client& client) {
+    const std::string& nick = client.getNickname();
+    const std::string& user = client.getUsername();
+    std::string reply;
+    reply += ":irc.Brika.net 001 " + nick + " :Welcome to the Internet Relay Network "
+        + nick + "!" + user + "@localhost\r\n";
+    reply += ":irc.Brika.net 002 " + nick
+        + " :Your host is irc.Brika.net, running version 1.0\r\n";
+    reply += ":irc.Brika.net 003 " + nick + " :This server was created today\r\n";
+    reply += ":irc.Brika.net 004 " + nick + " irc.Brika.net 1.0 o itklo\r\n";
+    reply += ":irc.Brika.net 005 " + nick
+        + " CHANTYPES=# NICKLEN=30 PREFIX=(o)@ CHANMODES=,k,l,it :are supported by this server\r\n";
+    reply += ":irc.Brika.net 422 " + nick + " :MOTD File is missing\r\n";
+    client.sendMessage(reply);
+    std::cout << "Client " << client.getFd() << " = " << user
+        << " authenticated successfully!" << std::endl;
+}
+
 void HandleCommand(int fd, std::map<int, Client>& clientBuffers, const std::string& serv_pass, const std::string& commandLine, ChannelRegistry& channels, QuizBot& bot) {
     const Command command = parseCommand(commandLine);
     Client& client = clientBuffers[fd];
     client.setFd(fd);
-    std::cout << client.Authentification::isAuthenticated() << "  " << commandLine << std::endl;
+    std::cout << client.isAuthenticated() << "  " << command.command << std::endl;
+    if (handleClientNegotiation(client, command))
+        return;
     if (!client.isAuthenticated()) {
+        const bool wasAuthenticated = client.isAuthenticated();
         authenticateClient(client, clientBuffers, serv_pass, command);
-        if (!client.isAuthenticated()) {
-            std::cerr << "Client not authenticated. ALL Commands are ignored.for user : "<< fd << " except PASS,NICK,USER" << std::endl;
-            return;
-        }
+        if (!wasAuthenticated && client.isAuthenticated())
+            sendWelcome(client);
+        return;
     }
-    else {
-        executeCommands(client, clientBuffers, command, channels, bot);
-    }
+    executeCommands(client, clientBuffers, command, channels, bot);
 }
 
 Command parseCommand(const std::string& commandLine) {
@@ -66,6 +103,9 @@ Command parseCommand(const std::string& commandLine) {
 
     if (start != std::string::npos) {
         command.command = commandLine.substr(start, end - start);
+        std::ranges::transform(command.command, command.command.begin(), [](unsigned char ch) {
+            return static_cast<char>(std::toupper(ch));
+        });
         start = commandLine.find_first_not_of(" \t", end);
 
         while (start != std::string::npos) {
@@ -161,9 +201,8 @@ void PRIVMSG(int fd, const std::map<int, Client>& clientBuffers, Client& client,
 void executeCommands(Client& client, std::map<int, Client>& clientBuffers, const Command& command, ChannelRegistry& channels, QuizBot& bot) {
     if(command.command == "PASS"|| command.command == "USER")
     {
-        std::string reply =  "U're already authentified ! \r\n";
-        send(client.getFd(),reply.c_str(),reply.length(),0);
-        std::cerr << "client "<< client.getUsername() << "! already authentified !" << std::endl;
+        client.sendMessage(":irc.Brika.net 462 " + client.getNickname()
+            + " :You may not reregister\r\n");
         return;
     }
     else if (command.command == "NICK" && command.params.size() == 1) {

@@ -132,7 +132,24 @@ class IrcServerTests(unittest.TestCase):
         client = self.register("registertest")
         self.assertIsNotNone(client)
 
-    def test_automatically_uniquifies_duplicate_nickname(self):
+    def test_registration_supports_capability_negotiation_and_standard_welcome(self):
+        client = self.connect_client()
+        client.sendall(
+            b"CAP LS 302\r\n"
+            b"PASS ci-test-password\r\n"
+            b"USER irssi_user 0 * :Irssi Test User\r\n"
+            b"NICK irssi_user\r\n"
+            b"CAP END\r\n"
+        )
+        response = self.receive_until(client, b" 422 irssi_user ")
+        self.assertIn(b":irc.Brika.net CAP * LS :", response)
+        self.assertIn(b" 001 irssi_user :Welcome", response)
+        self.assertIn(b" 004 irssi_user irc.Brika.net 1.0 o itklo", response)
+        self.assertIn(b" 005 irssi_user CHANTYPES=# NICKLEN=30", response)
+        self.assertIn(b" 422 irssi_user :MOTD File is missing", response)
+        self.assertEqual(response.count(b" 001 irssi_user "), 1)
+
+    def test_rejects_duplicate_nickname_with_standard_numeric(self):
         self.register("duplicate")
         client = self.connect_client()
         client.sendall(
@@ -140,8 +157,60 @@ class IrcServerTests(unittest.TestCase):
             b"NICK duplicate\r\n"
             b"USER duplicate 0 * :CI Test\r\n"
         )
-        welcome = self.receive_until(client, b" 001 duplicate_ ")
-        self.assertIn(b" 001 duplicate_ ", welcome)
+        duplicate = self.receive_until(client, b" 433 * duplicate ")
+        self.assertIn(
+            b":irc.Brika.net 433 * duplicate :Nickname is already in use",
+            duplicate,
+        )
+        self.assertNotIn(b" 001 ", duplicate)
+
+        client.sendall(b"NICK duplicate_new\r\n")
+        welcome = self.receive_until(client, b" 001 duplicate_new ")
+        self.assertIn(b" 001 duplicate_new ", welcome)
+
+    def test_nickname_uniqueness_uses_irc_case_mapping(self):
+        self.register("CaseNick")
+        client = self.connect_client()
+        client.sendall(
+            b"pass ci-test-password\r\n"
+            b"nick casenick\r\n"
+            b"user another_user 0 * :CI Test\r\n"
+        )
+        reply = self.receive_until(client, b" 433 * casenick ")
+        self.assertIn(b" 433 * casenick :Nickname is already in use", reply)
+        self.assertNotIn(b" 001 ", reply)
+
+    def test_rejects_invalid_nickname_without_registering(self):
+        client = self.connect_client()
+        client.sendall(
+            b"PASS ci-test-password\r\n"
+            b"NICK 123invalid\r\n"
+            b"USER invalid_user 0 * :CI Test\r\n"
+        )
+        reply = self.receive_until(client, b" 432 * 123invalid ")
+        self.assertIn(
+            b":irc.Brika.net 432 * 123invalid :Erroneous nickname",
+            reply,
+        )
+        self.assertNotIn(b" 001 ", reply)
+
+    def test_rejects_reregistering_after_welcome(self):
+        client = self.register("reregister")
+        client.sendall(b"PASS ci-test-password\r\n")
+        reply = self.receive_until(client, b" 462 reregister ")
+        self.assertIn(
+            b":irc.Brika.net 462 reregister :You may not reregister",
+            reply,
+        )
+
+    def test_answers_ping_before_registration(self):
+        client = self.connect_client()
+        client.sendall(b"PING :registration-check\r\n")
+        reply = self.receive_until(client, b"PONG irc.Brika.net :registration-check")
+        self.assertIn(
+            b":irc.Brika.net PONG irc.Brika.net :registration-check",
+            reply,
+        )
 
     def test_server_accepts_clients_after_disconnect(self):
         first = self.register("disconnecting")
@@ -165,8 +234,11 @@ class IrcServerTests(unittest.TestCase):
     def test_rejects_incorrect_password(self):
         client = self.connect_client()
         client.sendall(b"PASS incorrect-password\r\n")
-        reply = self.receive_until(client, b"464 ERR_PASSWDMISMATCH")
-        self.assertIn(b"464 ERR_PASSWDMISMATCH", reply)
+        reply = self.receive_until(client, b" 464 * ")
+        self.assertIn(
+            b":irc.Brika.net 464 * :Password incorrect",
+            reply,
+        )
 
     def test_broadcasts_channel_message_to_members(self):
         sender = self.register("sender")
