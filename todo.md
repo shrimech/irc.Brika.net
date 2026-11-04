@@ -1,9 +1,31 @@
 # Development TODO
 
-This backlog is based on a review of the current server, command handlers,
-channel model, bot, build setup, documentation, and integration tests. Items
-are ordered by priority; protocol features should build on the reliability and
-correctness work listed first.
+This is the exhaustive backlog of known gaps found while reviewing every
+tracked source file, test, build script, workflow, and user-facing document.
+It covers the current single-server project scope; it is not a promise to
+implement every command or extension in the full IRC protocol. Items are
+ordered by priority, and new gaps found during implementation or review should
+be added here.
+
+## Current IRC Command Coverage
+
+| Command or feature | Current status |
+| --- | --- |
+| `PASS`, `NICK`, `USER` | Registration is implemented; `USER` identity fields beyond username are not retained. |
+| `PING` | Responds with `PONG`; server-initiated ping/timeout handling is not implemented. |
+| `PONG` | No inbound command handler. |
+| `CAP` | Partial `LS`, `LIST`, `REQ`, and `END`; no capabilities are supported or tracked. |
+| `PRIVMSG` | One user or channel target; uses inconsistent write paths, and identifier matching is not uniformly IRC-case-insensitive. |
+| `JOIN` | One `#` channel per command; no comma-separated channel/key lists or `JOIN 0`. |
+| `TOPIC` | Read/set for channel members; topic lengths and some protocol edge cases are not validated. |
+| `INVITE` | Operator-only invitation for existing channels; invite tokens are not consumed on join. |
+| `KICK` | One target at a time; limited validation and operator succession behavior. |
+| `MODE` | Partial channel flags `i`, `t`, `k`, `l`, and `o`; single flag change only. No user modes. |
+| `QUIT`, `PART`, `NOTICE` | Not implemented. |
+| `NAMES`, `LIST`, `WHO`, `WHOIS` | Not implemented as explicit commands; `JOIN` only emits a basic names list. |
+| `AWAY`, `ISON`, `USERHOST` | Not implemented. |
+| Unknown commands | Logged locally; no standard `421` response. |
+| Server-network/operator commands | Not implemented; server linking and remote administration are outside current scope. |
 
 ## P0 — Reliability and Protocol Correctness
 
@@ -268,3 +290,214 @@ unnecessary system changes.
 **Done when:** Supported platforms and installation commands are documented,
 the helper reports unsupported systems clearly, and its behavior is tested
 without requiring contributors to guess package names.
+
+### 17. Handle multiple channel targets and standard JOIN edge cases
+
+**Current gap:** `JOIN` and `KICK` process one channel/target per command.
+`JOIN` does not implement `JOIN 0`, and comma-separated channel names and
+corresponding keys are not supported.
+
+**Work:** Implement the IRC forms of multi-channel `JOIN`, per-channel keys,
+and `JOIN 0` (leave all current channels) after `PART` exists. Validate each
+target independently and return protocol replies without partially applying
+invalid requests. Decide and document the supported comma-separated `KICK`
+behavior or explicitly return a standard error for unsupported forms.
+
+**Done when:** Single-target behavior remains intact; valid lists, key-list
+alignment, invalid members in a list, and `JOIN 0` have deterministic
+integration tests.
+
+### 18. Complete invitations and channel operator lifecycle
+
+**Current gap:** Joining does not consume an invite, so an invitation can be
+reused. The member who becomes channel operator is selected only when the
+channel is empty; if all operators leave or are kicked while members remain,
+the channel can have no operator. `INVITE` currently requires operator status
+even when the channel is not invite-only.
+
+**Work:** Consume an invite when the invited client successfully joins. Align
+the operator requirement for `INVITE` with the selected IRC behavior. Ensure
+each membership-removal path updates invitations and operator membership;
+define how operator status transfers when the last operator leaves.
+
+**Done when:** Invitations cannot be reused after a successful join; operator
+state is valid after leave, quit, disconnect, kick, and mode changes; tests
+cover invited/non-invited joins and operator succession.
+
+### 19. Enforce channel and topic identifier limits
+
+**Current gap:** Channel validation only checks that a name begins with `#`
+and contains at least one following character. Maximum lengths, forbidden
+characters, and topic length are not consistently enforced.
+
+**Work:** Define supported channel-name and topic limits, validate names
+before creating channels or looking them up, and return the correct numeric
+for invalid names. Keep these limits consistent with the server's advertised
+`005` values and parser limits.
+
+**Done when:** Invalid and boundary-length names/topics are rejected
+consistently by every command and boundary cases are tested.
+
+### 20. Support IRC case mapping consistently for all identifiers
+
+This expands item 9 to cover the complete command surface: private-message
+recipients, channel names, invite and kick targets, operator targets, and bot
+target aliases must use the same defined comparison rules. Preserve canonical
+display spelling and ensure nick changes cannot leave stale references.
+
+**Done when:** A single shared case-mapping implementation is used for every
+lookup, and tests cover ASCII case and RFC1459-equivalent special characters
+through each relevant command.
+
+### 21. Support user-target lists and make message routing uniform
+
+**Current gap:** `PRIVMSG` accepts exactly one target and its bot, channel,
+and user paths use different output mechanisms. User lookup uses exact
+nickname spelling and direct `send` calls.
+
+**Work:** Route all outbound data through the client output API from item 1.
+Implement comma-separated user/channel target lists if included in the
+supported protocol scope, with a documented target-count limit and the
+appropriate per-target error behavior. Use shared identifier matching and
+preserve trailing message text.
+
+**Done when:** Every recipient path uses the same reliable write mechanism;
+multiple targets either work with tested limits or receive an explicit
+standard error; one bad target does not corrupt delivery to other targets.
+
+### 22. Track complete registered-user identity and session state
+
+**Current gap:** The server discards `USER`'s real name and other parameters,
+does not track sign-on time or away state, and uses a fixed `localhost` host
+in message prefixes. This limits correct `WHO`/`WHOIS`, `AWAY`, and client
+identity replies.
+
+**Work:** Define which `USER` fields and connection metadata are retained.
+Store the real name and sign-on time where needed; derive or deliberately
+configure the client host rather than hardcoding it. Add away-state storage
+when implementing `AWAY`. Do not expose private or unavailable fields.
+
+**Done when:** Welcome and user-facing prefixes use consistent identity data;
+the fields needed by supported query commands are retained, documented, and
+tested through registration and nickname changes.
+
+### 23. Implement standard single-server utility commands
+
+**Current gap:** `PONG` is not accepted, and common client utility commands
+such as `AWAY`, `ISON`, and `USERHOST` are absent. The server does not
+originate `PING` probes or detect idle clients.
+
+**Work:** Implement the commands that fit the single-server scope, using
+standard numerics and current client state. If server-originated liveness
+probes are added, track outstanding tokens and deadlines and disconnect
+clients that do not answer. Explicitly document protocol commands excluded
+because they require server linking, operator privileges, or services.
+
+**Done when:** Supported utility commands have correct behavior and tests for
+valid, missing, and unknown targets; unsupported network/operator commands
+are documented as out of scope rather than silently implied to be available.
+
+### 24. Make server startup, accept, and shutdown behavior robust
+
+**Current gap:** The accept loop handles one queued connection per poll event.
+The server is IPv4-only, startup settings are fixed to an all-interface
+listener, and shutdown behavior is spread across signal handling and object
+destruction. Some socket errors are ignored or reported without their cause.
+
+**Work:** Drain pending accepts until would-block, classify transient and
+fatal errors, and ensure descriptor ownership/cleanup is explicit. Define
+bind-address and IPv4/IPv6 support requirements. Make signal-driven shutdown
+close active connections and release all session state deterministically;
+include meaningful system error details in diagnostics.
+
+**Done when:** Bursts of connections are accepted without requiring unrelated
+events, shutdown leaves no open descriptors or stale state, and startup,
+accept, and shutdown failure cases are integration-tested.
+
+### 25. Make server configuration and secret handling safer
+
+**Current gap:** The bind address and server name are hard-coded, and the
+password is provided as a command-line argument, which may be visible to
+other local processes. There is no configuration validation beyond the port.
+
+**Work:** Decide the supported configuration interface for bind address,
+server name, connection limits, and password. Prefer a protected configuration
+file, environment input, or another mechanism that avoids exposing secrets in
+process listings; validate missing/empty values and report usage clearly.
+Keep the existing command line compatible if changing it would break users.
+
+**Done when:** Configuration options, defaults, and secret handling are
+documented; invalid settings fail before opening the listener; tests cover
+argument/configuration errors without printing secret values.
+
+### 26. Improve integration-test isolation and reliability
+
+**Current gap:** The test suite starts one long-lived server for all tests,
+reserves a port and closes the reservation before server startup, uses
+time-based sleeps, and occasionally waits for socket timeouts to infer that
+no message arrived.
+
+**Work:** Use deterministic readiness and message-framing helpers, avoid
+fixed sleeps where a protocol event or bounded polling can be used, and make
+the ephemeral-port allocation race as small as practical. Ensure server
+processes and sockets are cleaned up if setup or a test fails. Add focused
+parser tests where feasible.
+
+**Done when:** Repeated test runs are stable under load and across CI
+distributions; failures identify the test and relevant captured server/client
+output; no background process or socket is left behind after a failed test.
+
+### 27. Add sanitizer and static-analysis CI checks
+
+**Current gap:** CI compiles with GCC and Clang across several Linux
+distributions, but does not run sanitizers, static analysis, or a compiler
+warning profile beyond the Makefile's current flags.
+
+**Work:** Add a focused Linux sanitizer job (for example AddressSanitizer and
+UndefinedBehaviorSanitizer) and an appropriate static-analysis or stricter
+warning job. Keep these separate from the distribution matrix if needed to
+control runtime. Capture reports as CI artifacts and avoid hiding findings
+with blanket suppressions.
+
+**Done when:** The test suite runs under the selected sanitizers and
+analysis checks, actionable findings fail CI, and tool versions are recorded.
+
+### 28. Document the complete supported protocol and deployment contract
+
+**Current gap:** The README describes features and registration but does not
+provide a complete supported-command list, known protocol limitations,
+connection limits, or deployment/security requirements. The dependency
+installer and distribution CI scope are also not fully explained together.
+
+**Work:** Document implemented commands and mode flags, unsupported
+single-server commands, channel and line limits, client registration, server
+configuration, build/test commands, supported installation environments,
+and the TLS/password security boundary. Keep this documentation synchronized
+with actual behavior and welcome `005` capabilities.
+
+**Done when:** A new user can determine which client operations work and how
+to deploy safely without relying on undocumented behavior; documented
+capabilities are checked against tests.
+
+### 29. Define deployment, packaging, and release support
+
+**Current gap:** The project builds a local executable and tests it in CI but
+has no installation target, package format, versioning policy, release
+workflow, or documented service-management integration.
+
+**Work:** Decide whether deployment is in scope. If it is, define install
+paths, ownership/permissions, configuration location, service lifecycle,
+version reporting, and release artifact targets. If not, document that
+building from source is the supported deployment model.
+
+**Done when:** The supported deployment approach is explicit and reproducible;
+if releases are added, artifacts are traceable to a tested commit and have
+documented installation and rollback instructions.
+
+## Explicitly Out of Scope Unless the Project Direction Changes
+
+- Multi-server linking and routing (`SERVER`, `SQUIT`, and related commands).
+- IRC operator administration (`OPER`, `KILL`, `DIE`, `REHASH`, and related
+  privileged commands).
+- Service/server-to-server protocols and IRC extensions not required by the
+  single-server client use case.
