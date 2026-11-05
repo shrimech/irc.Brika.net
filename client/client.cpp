@@ -20,9 +20,11 @@ void Client::noteActivity() {
     lastActivity = std::chrono::steady_clock::now();
 }
 
-bool Client::shouldSendPing(std::chrono::steady_clock::time_point now,
+Client::LivenessAction Client::checkLiveness(std::chrono::steady_clock::time_point now,
     std::chrono::seconds interval) const {
-    return pendingPingToken.empty() && now >= lastActivity + interval;
+    if (!pendingPingToken.empty())
+        return now >= pingDeadline ? LivenessAction::disconnect : LivenessAction::none;
+    return now >= lastActivity + interval ? LivenessAction::sendPing : LivenessAction::none;
 }
 
 void Client::startPing(std::string token, std::chrono::steady_clock::time_point deadline) {
@@ -36,10 +38,6 @@ bool Client::acknowledgePing(const std::string& token) {
     pendingPingToken.clear();
     noteActivity();
     return true;
-}
-
-bool Client::pingTimedOut(std::chrono::steady_clock::time_point now) const {
-    return !pendingPingToken.empty() && now >= pingDeadline;
 }
 
 std::chrono::steady_clock::time_point Client::nextLivenessDeadline(

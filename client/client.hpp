@@ -16,6 +16,12 @@ class Client : public Authentification
         std::chrono::steady_clock::time_point pingDeadline;
         
     public:
+        enum class LivenessAction {
+            none,
+            sendPing,
+            disconnect
+        };
+
         Client();
         ~Client();
 
@@ -25,11 +31,10 @@ class Client : public Authentification
         bool extractLine(std::string& line);
         void sendMessage(const std::string &message);
         void noteActivity();
-        bool shouldSendPing(std::chrono::steady_clock::time_point now,
+        LivenessAction checkLiveness(std::chrono::steady_clock::time_point now,
             std::chrono::seconds interval) const;
         void startPing(std::string token, std::chrono::steady_clock::time_point deadline);
         bool acknowledgePing(const std::string& token);
-        bool pingTimedOut(std::chrono::steady_clock::time_point now) const;
         std::chrono::steady_clock::time_point nextLivenessDeadline(
             std::chrono::seconds interval) const;
 };

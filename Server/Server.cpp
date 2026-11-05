@@ -161,13 +161,19 @@ void Server::CheckClientLiveness(ChannelRegistry& channels) {
     const auto now = std::chrono::steady_clock::now();
     std::vector<int> timedOut;
     for (auto& [fd, client] : _clientBuffers) {
-        if (client.pingTimedOut(now)) {
-            std::cerr << "Client " << fd << " timed out waiting for PONG." << std::endl;
-            timedOut.push_back(fd);
-        } else if (client.shouldSendPing(now, _pingInterval)) {
-            const std::string token = _serverName + "-" + std::to_string(++_nextPingId);
-            client.startPing(token, now + _pingTimeout);
-            client.sendMessage(":" + _serverName + " PING :" + token + "\r\n");
+        switch (client.checkLiveness(now, _pingInterval)) {
+            case Client::LivenessAction::disconnect:
+                std::cerr << "Client " << fd << " timed out waiting for PONG." << std::endl;
+                timedOut.push_back(fd);
+                break;
+            case Client::LivenessAction::sendPing: {
+                const std::string token = _serverName + "-" + std::to_string(++_nextPingId);
+                client.startPing(token, now + _pingTimeout);
+                client.sendMessage(":" + _serverName + " PING :" + token + "\r\n");
+                break;
+            }
+            case Client::LivenessAction::none:
+                break;
         }
     }
 
