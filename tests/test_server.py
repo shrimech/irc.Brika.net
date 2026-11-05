@@ -470,6 +470,94 @@ class IrcServerTests(unittest.TestCase):
         with self.assertRaises(socket.timeout):
             client.recv(4096)
 
+    def test_part_broadcasts_reason_and_removes_membership(self):
+        leaving = self.register("part_leaving")
+        remaining = self.register("part_remaining")
+        self.join_channel(leaving, "part_leaving", "#part-flow")
+        self.join_channel(remaining, "part_remaining", "#part-flow")
+
+        leaving.sendall(b"PART #part-flow :done for today\r\n")
+        expected = (
+            b":part_leaving!part_leaving@localhost PART #part-flow :done for today"
+        )
+        self.assertIn(expected, self.receive_until(leaving, expected))
+        self.assertIn(expected, self.receive_until(remaining, expected))
+
+        leaving.sendall(b"PRIVMSG #part-flow :I have left\r\n")
+        rejected = self.receive_until(leaving, b" 404 part_leaving #part-flow ")
+        self.assertIn(
+            b" 404 part_leaving #part-flow :Cannot send to channel",
+            rejected,
+        )
+
+    def test_part_without_reason_omits_trailing_reason(self):
+        leaving = self.register("part_default")
+        remaining = self.register("part_default_peer")
+        self.join_channel(leaving, "part_default", "#part-default")
+        self.join_channel(remaining, "part_default_peer", "#part-default")
+
+        leaving.sendall(b"PART #part-default\r\n")
+        expected = (
+            b":part_default!part_default@localhost PART #part-default\r\n"
+        )
+        self.assertIn(expected, self.receive_until(remaining, expected))
+
+    def test_part_leaves_multiple_channels_with_one_reason(self):
+        leaving = self.register("part_multi")
+        first_peer = self.register("part_multi_first")
+        second_peer = self.register("part_multi_second")
+        self.join_channel(leaving, "part_multi", "#part-first")
+        self.join_channel(leaving, "part_multi", "#part-second")
+        self.join_channel(first_peer, "part_multi_first", "#part-first")
+        self.join_channel(second_peer, "part_multi_second", "#part-second")
+
+        leaving.sendall(b"PART #part-first,#part-second :leaving both\r\n")
+        first_part = (
+            b":part_multi!part_multi@localhost PART #part-first :leaving both"
+        )
+        second_part = (
+            b":part_multi!part_multi@localhost PART #part-second :leaving both"
+        )
+        self.assertIn(first_part, self.receive_until(leaving, first_part))
+        self.assertIn(second_part, self.receive_until(leaving, second_part))
+        self.assertIn(first_part, self.receive_until(first_peer, first_part))
+        self.assertIn(second_part, self.receive_until(second_peer, second_part))
+
+    def test_part_continues_after_an_invalid_channel_target(self):
+        leaving = self.register("part_mixed")
+        peer = self.register("part_mixed_peer")
+        self.join_channel(leaving, "part_mixed", "#part-valid")
+        self.join_channel(peer, "part_mixed_peer", "#part-valid")
+
+        leaving.sendall(b"PART #part-missing,#part-valid :partial success\r\n")
+        error = self.receive_until(
+            leaving, b" 403 part_mixed #part-missing :No such channel"
+        )
+        self.assertIn(
+            b":irc.Brika.net 403 part_mixed #part-missing :No such channel",
+            error,
+        )
+        part = b":part_mixed!part_mixed@localhost PART #part-valid :partial success"
+        self.assertIn(part, self.receive_until(leaving, part))
+        self.assertIn(part, self.receive_until(peer, part))
+
+    def test_part_removes_empty_channel(self):
+        client = self.register("part_last_member")
+        self.join_channel(client, "part_last_member", "#part-empty")
+
+        client.sendall(b"PART #part-empty :finished\r\n")
+        self.assertIn(
+            b" PART #part-empty :finished",
+            self.receive_until(client, b" PART #part-empty :finished"),
+        )
+
+        client.sendall(b"TOPIC #part-empty\r\n")
+        reply = self.receive_until(client, b" 403 part_last_member #part-empty ")
+        self.assertIn(
+            b" 403 part_last_member #part-empty :No such channel",
+            reply,
+        )
+
     def test_channel_key_rejects_missing_or_incorrect_key(self):
         owner = self.register("key_owner")
         joiner = self.register("key_joiner")
@@ -744,6 +832,10 @@ class IrcServerTests(unittest.TestCase):
 PROTOCOL_CASES = [
     ("join_requires_channel", "none", "JOIN", " 461 {nick} JOIN", False),
     ("join_rejects_invalid_channel", "none", "JOIN invalid", " 403 {nick} invalid", False),
+    ("part_requires_channel", "none", "PART", " 461 {nick} PART", False),
+    ("part_rejects_invalid_channel", "none", "PART invalid", " 403 {nick} invalid", False),
+    ("part_requires_existing_channel", "none", "PART #missing", " 403 {nick} #missing", False),
+    ("part_requires_membership", "channel", "PART {channel}", " 442 {nick} {channel}", False),
     ("topic_requires_channel", "none", "TOPIC", " 461 {nick} TOPIC", False),
     ("topic_requires_existing_channel", "none", "TOPIC #missing", " 403 {nick} #missing", False),
     ("topic_requires_membership_to_read", "channel", "TOPIC {channel}", " 442 {nick} {channel}", False),
