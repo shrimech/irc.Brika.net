@@ -1,5 +1,5 @@
 #include "ChannelCommands.hpp"
-#include "ChannelRegistry.hpp"
+#include "../../channel/ChannelRegistry.hpp"
 #include <sstream>
 
 static std::string currentModeString(Channel* channel, bool isOp)

@@ -1,7 +1,7 @@
 #ifndef CHANNEL_COMMANDS_HPP
 #define CHANNEL_COMMANDS_HPP
 
-#include "../client/client.hpp"
+#include "../../client/client.hpp"
 #include <map>
 #include <string>
 #include <vector>

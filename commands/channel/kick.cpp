@@ -1,5 +1,5 @@
 #include "ChannelCommands.hpp"
-#include "ChannelRegistry.hpp"
+#include "../../channel/ChannelRegistry.hpp"
 
 void kickHandler(ChannelRegistry& channels, std::map<int, Client>& clients, Client& client, const std::vector<std::string>& params)
 {

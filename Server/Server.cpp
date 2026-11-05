@@ -1,5 +1,5 @@
 #include "Server.hpp"
-#include "../client/commands.hpp"
+#include "../commands/commands.hpp"
 #include <cerrno>
 #include <cstring>
 #include <fcntl.h>
@@ -145,7 +145,7 @@ void Server::ReceiveNewData(int fd, ChannelRegistry& channels) {
         client.appendInput(buffer, static_cast<std::size_t>(bytes));
         std::string command;
         while (client.extractLine(command))
-            HandleCommand(fd, _clientBuffers, _password, command, channels, _bot);
+            handleCommand(fd, _clientBuffers, _password, command, channels, _bot);
     } else if (bytes == 0) {
         std::cout << "Client " << fd << " disconnected." << std::endl;
         ClearClient(fd, channels);

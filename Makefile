@@ -11,16 +11,19 @@ SOURCES := \
 	Server/Server.cpp \
 	main.cpp \
 	client/authentification.cpp \
-	client/commands.cpp \
+	commands/registration.cpp \
+	commands/parser.cpp \
+	commands/messaging.cpp \
+	commands/commands.cpp \
 	client/client.cpp \
-	channel/helpers.cpp \
+	commands/channel/helpers.cpp \
 	channel/Channel.cpp \
 	channel/ChannelRegistry.cpp \
-	channel/join.cpp \
-	channel/topic.cpp \
-	channel/invite.cpp \
-	channel/kick.cpp \
-	channel/mode.cpp
+	commands/channel/join.cpp \
+	commands/channel/topic.cpp \
+	commands/channel/invite.cpp \
+	commands/channel/kick.cpp \
+	commands/channel/mode.cpp
 
 OBJECTS := $(patsubst %.cpp,$(BUILD_DIR)/%.o,$(SOURCES))
 DEPFILES := $(OBJECTS:.o=.d)
