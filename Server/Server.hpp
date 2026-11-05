@@ -4,8 +4,10 @@
 #include "../client/client.hpp"
 #include "../channel/ChannelRegistry.hpp"
 #include "../Bot/Bot.hpp"
+#include <chrono>
 #include <csignal>
 #include <map>
+#include <cstdint>
 #include <poll.h>
 #include <string>
 #include <vector>
@@ -16,12 +18,17 @@ private:
     int _serverSocket;
     std::string _serverName;
     std::string _password;
+    std::chrono::seconds _pingInterval;
+    std::chrono::seconds _pingTimeout;
+    std::uint64_t _nextPingId;
     std::vector<struct pollfd> _pollfds;
     std::map<int, Client> _clientBuffers;
     QuizBot _bot;
 
     void AcceptNewClient();
     void ReceiveNewData(int fd, ChannelRegistry& channels);
+    void CheckClientLiveness(ChannelRegistry& channels);
+    int GetPollTimeout() const;
     void ClearClient(int fd, ChannelRegistry& channels);
     bool hasPollFd(int fd) const;
 

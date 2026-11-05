@@ -64,6 +64,12 @@ make
 ./ircserv <port> <password>
 ```
 
+The server sends a `PING` to clients after 60 seconds without inbound
+activity and disconnects clients that do not return the matching `PONG`
+within 30 seconds. Set `IRC_PING_INTERVAL_SECONDS` or
+`IRC_PING_TIMEOUT_SECONDS` to positive integer values to override these
+defaults.
+
 Example:
 
 ```bash
