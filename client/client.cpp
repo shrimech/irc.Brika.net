@@ -1,8 +1,10 @@
 #include "client.hpp"
 #include <iostream>
 #include <sys/socket.h>
+#include <utility>
 
-Client::Client() : Authentification(), fd(-1) {}
+Client::Client()
+    : Authentification(), fd(-1), lastActivity(std::chrono::steady_clock::now()) {}
 
 Client::~Client() = default;
 
@@ -12,6 +14,35 @@ void Client::setFd(int fd) {
 
 int Client::getFd() const {
     return fd;
+}
+
+void Client::noteActivity() {
+    lastActivity = std::chrono::steady_clock::now();
+}
+
+Client::LivenessAction Client::checkLiveness(std::chrono::steady_clock::time_point now,
+    std::chrono::seconds interval) const {
+    if (!pendingPingToken.empty())
+        return now >= pingDeadline ? LivenessAction::disconnect : LivenessAction::none;
+    return now >= lastActivity + interval ? LivenessAction::sendPing : LivenessAction::none;
+}
+
+void Client::startPing(std::string token, std::chrono::steady_clock::time_point deadline) {
+    pendingPingToken = std::move(token);
+    pingDeadline = deadline;
+}
+
+bool Client::acknowledgePing(const std::string& token) {
+    if (pendingPingToken.empty() || pendingPingToken != token)
+        return false;
+    pendingPingToken.clear();
+    noteActivity();
+    return true;
+}
+
+std::chrono::steady_clock::time_point Client::nextLivenessDeadline(
+    std::chrono::seconds interval) const {
+    return pendingPingToken.empty() ? lastActivity + interval : pingDeadline;
 }
 
 void Client::appendInput(const char* data, std::size_t size) {
