@@ -4,6 +4,18 @@
 
 A lightweight IRC server built with **C++20**, designed for real-time communication over TCP/IP.
 
+## Project structure
+
+- `Server/` owns the listener, polling loop, and connection lifecycle.
+- `client/` contains per-connection and registered-user state.
+- `commands/` contains IRC command parsing, dispatch, registration, and
+  messaging; `commands/channel/` contains channel command handlers.
+  `parser.cpp` owns line-to-command parsing, `commands.cpp` dispatches parsed
+  commands, and `registration.cpp` owns PASS/NICK/USER registration behavior.
+- `channel/` contains channel state and the channel registry.
+- `Bot/` contains the QuizBot implementation.
+- `tests/` contains end-to-end server tests.
+
 ## Overview
 
 **irc.Brika.net** is an Internet Relay Chat (IRC) server providing client connectivity, user registration, authentication, private messaging, and bot interactions through the IRC protocol.

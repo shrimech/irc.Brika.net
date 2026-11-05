@@ -1,5 +1,5 @@
 #include "ChannelCommands.hpp"
-#include "ChannelRegistry.hpp"
+#include "../../channel/ChannelRegistry.hpp"
 
 void inviteHandler(ChannelRegistry& channels, Client& client, const std::vector<std::string>& params, std::map<int, Client>& clients)
 {
