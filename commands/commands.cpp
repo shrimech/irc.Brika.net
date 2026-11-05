@@ -122,6 +122,8 @@ static void executeCommands(Client& client, std::map<int, Client>& clientBuffers
     }
 	else if (command.command == "JOIN")
 		joinHandler(channels, client, command.params);
+	else if (command.command == "PART")
+		partHandler(channels, client, command.params);
 	else if (command.command == "TOPIC")
 		topicHandler(channels, client, command.params);
 	else if (command.command == "INVITE")

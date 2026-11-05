@@ -20,6 +20,7 @@ SOURCES := \
 	channel/Channel.cpp \
 	channel/ChannelRegistry.cpp \
 	commands/channel/join.cpp \
+	commands/channel/part.cpp \
 	commands/channel/topic.cpp \
 	commands/channel/invite.cpp \
 	commands/channel/kick.cpp \

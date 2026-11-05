@@ -21,7 +21,8 @@ be added here.
 | `INVITE` | Operator-only invitation for existing channels; invite tokens are not consumed on join. |
 | `KICK` | One target at a time; limited validation and operator succession behavior. |
 | `MODE` | Partial channel flags `i`, `t`, `k`, `l`, and `o`; single flag change only. No user modes. |
-| `QUIT`, `PART`, `NOTICE` | Not implemented. |
+| `PART` | Supports comma-separated channels and an optional shared reason; broadcasts each departure and removes empty channels. |
+| `QUIT`, `NOTICE` | Not implemented. |
 | `NAMES`, `LIST`, `WHO`, `WHOIS` | Not implemented as explicit commands; `JOIN` only emits a basic names list. |
 | `AWAY`, `ISON`, `USERHOST` | Not implemented. |
 | Unknown commands | Logged locally; no standard `421` response. |
@@ -101,23 +102,22 @@ capabilities match tested behavior.
 
 ## P1 — Core IRC User and Channel Commands
 
-### 5. Implement `QUIT` and `PART` with complete membership cleanup
+### 5. Implement `QUIT` with complete membership cleanup
 
 **Current gap:** Clients are removed from channels only after a transport
-disconnect. There is no user-initiated quit or channel-part command, so
-clients cannot leave normally and channel membership/operator/invitation state
-cannot be maintained across those operations.
+disconnect or explicit `PART`. There is no user-initiated quit, so a client
+cannot leave the server gracefully and peers do not receive a quit message.
 
-**Work:** Implement `QUIT` with an optional reason and `PART` with one or more
-supported channel targets and an optional reason. Broadcast the correct
-message to affected peers, remove memberships and invitations, close/clean
-up clients on `QUIT`, and remove empty channels. Define what happens when the
-last operator leaves a non-empty channel and transfer operator status if
-needed.
+**Work:** Implement `QUIT` with an optional reason. Broadcast the correct
+message to all peers sharing channels, remove memberships and invitations,
+close the client's connection, and clean up empty channels. Reuse the
+membership cleanup already used by `PART` and transport disconnects. Define
+what happens when the last operator leaves a non-empty channel and transfer
+operator status if needed.
 
-**Done when:** Clients can quit or part channels using normal IRC commands;
-peers receive the corresponding messages; membership, invitations, operator
-state, and empty-channel cleanup remain correct and are integration-tested.
+**Done when:** Clients can quit normally; peers receive the quit message;
+membership, invitations, operator state, and empty-channel cleanup remain
+correct and are integration-tested.
 
 ### 6. Implement `NOTICE`
 
@@ -298,7 +298,8 @@ without requiring contributors to guess package names.
 corresponding keys are not supported.
 
 **Work:** Implement the IRC forms of multi-channel `JOIN`, per-channel keys,
-and `JOIN 0` (leave all current channels) after `PART` exists. Validate each
+and `JOIN 0` (leave all current channels) using the existing `PART` cleanup.
+Validate each
 target independently and return protocol replies without partially applying
 invalid requests. Decide and document the supported comma-separated `KICK`
 behavior or explicitly return a standard error for unsupported forms.

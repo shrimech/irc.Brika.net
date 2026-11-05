@@ -26,6 +26,7 @@ A lightweight IRC server built with **C++20**, designed for real-time communicat
 - Password-based authentication
 - User registration with `NICK` and `USER`
 - Nickname uniqueness
+- Channel membership management with `JOIN` and `PART`
 - Private messaging with `PRIVMSG`
 - Connection keepalive with `PING` and `PONG`
 - Welcome messages
