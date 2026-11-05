@@ -21,7 +21,7 @@ be added here.
 | `INVITE` | Operator-only invitation for existing channels; invite tokens are not consumed on join. |
 | `KICK` | One target at a time; limited validation and operator succession behavior. |
 | `MODE` | Partial channel flags `i`, `t`, `k`, `l`, and `o`; single flag change only. No user modes. |
-| `PART` | Implemented for one channel with an optional reason; broadcasts departure and removes empty channels. |
+| `PART` | Supports comma-separated channels and an optional shared reason; broadcasts each departure and removes empty channels. |
 | `QUIT`, `NOTICE` | Not implemented. |
 | `NAMES`, `LIST`, `WHO`, `WHOIS` | Not implemented as explicit commands; `JOIN` only emits a basic names list. |
 | `AWAY`, `ISON`, `USERHOST` | Not implemented. |
