@@ -1,6 +1,7 @@
 #include "Server.hpp"
 #include "../commands/commands.hpp"
 #include <cerrno>
+#include <climits>
 #include <cstring>
 #include <fcntl.h>
 #include <iostream>
@@ -9,16 +10,39 @@
 #include <sys/socket.h>
 #include <unistd.h>
 #include <algorithm>
+#include <charconv>
+#include <cstdlib>
 #include <utility>
 
 static volatile std::sig_atomic_t g_shutdown_requested = 0;
+
+static std::chrono::seconds readDurationSetting(const char* name, int defaultSeconds) {
+    const char* value = std::getenv(name);
+    if (!value)
+        return std::chrono::seconds(defaultSeconds);
+
+    int seconds = 0;
+    const std::string input(value);
+    const auto [end, error] = std::from_chars(
+        input.data(), input.data() + input.size(), seconds);
+    if (error != std::errc{} || end != input.data() + input.size() || seconds <= 0)
+        throw std::invalid_argument(std::string(name) + " must be a positive number of seconds");
+    return std::chrono::seconds(seconds);
+}
 
 void Server::signalHandler(int sig) {
     (void)sig;
     g_shutdown_requested = 1;
 }
 
-Server::Server(int port, std::string password) : _port(port), _serverSocket(-1), _serverName("irc.Brika.net"), _password(std::move(password)) {}
+Server::Server(int port, std::string password)
+    : _port(port),
+      _serverSocket(-1),
+      _serverName("irc.Brika.net"),
+      _password(std::move(password)),
+      _pingInterval(readDurationSetting("IRC_PING_INTERVAL_SECONDS", 60)),
+      _pingTimeout(readDurationSetting("IRC_PING_TIMEOUT_SECONDS", 30)),
+      _nextPingId(0) {}
 
 std::string Server::getName() const {
     return _serverName;
@@ -72,13 +96,12 @@ void Server::Init() {
 void Server::Run() {
     ChannelRegistry channels;
     while (!g_shutdown_requested) {
-        int ready = poll(_pollfds.data(), _pollfds.size(), -1);
+        int ready = poll(_pollfds.data(), _pollfds.size(), GetPollTimeout());
         if (ready < 0) {
             if (errno == EINTR)
                 continue;
             throw std::runtime_error("Failed to poll sockets");
         }
-
         for (size_t i = 0; i < _pollfds.size();) {
             const int fd = _pollfds[i].fd;
             const short events = _pollfds[i].revents;
@@ -106,6 +129,7 @@ void Server::Run() {
             }
             ++i;
         }
+        CheckClientLiveness(channels);
     }
 }
 
@@ -113,6 +137,42 @@ bool Server::hasPollFd(int fd) const {
     return std::ranges::any_of(_pollfds, [fd](const pollfd& descriptor) {
         return descriptor.fd == fd;
     });
+}
+
+int Server::GetPollTimeout() const {
+    if (_clientBuffers.empty())
+        return -1;
+
+    const auto now = std::chrono::steady_clock::now();
+    auto nextDeadline = std::chrono::steady_clock::time_point::max();
+    for (const auto& [fd, client] : _clientBuffers) {
+        (void)fd;
+        nextDeadline = std::min(nextDeadline, client.nextLivenessDeadline(_pingInterval));
+    }
+    if (nextDeadline <= now)
+        return 0;
+
+    const auto remaining = std::chrono::duration_cast<std::chrono::milliseconds>(
+        nextDeadline - now);
+    return static_cast<int>(std::min<std::int64_t>(remaining.count() + 1, INT_MAX));
+}
+
+void Server::CheckClientLiveness(ChannelRegistry& channels) {
+    const auto now = std::chrono::steady_clock::now();
+    std::vector<int> timedOut;
+    for (auto& [fd, client] : _clientBuffers) {
+        if (client.pingTimedOut(now)) {
+            std::cerr << "Client " << fd << " timed out waiting for PONG." << std::endl;
+            timedOut.push_back(fd);
+        } else if (client.shouldSendPing(now, _pingInterval)) {
+            const std::string token = _serverName + "-" + std::to_string(++_nextPingId);
+            client.startPing(token, now + _pingTimeout);
+            client.sendMessage(":" + _serverName + " PING :" + token + "\r\n");
+        }
+    }
+
+    for (const int fd : timedOut)
+        ClearClient(fd, channels);
 }
 
 void Server::AcceptNewClient() {
@@ -129,6 +189,7 @@ void Server::AcceptNewClient() {
         cli.events = POLLIN;
         cli.revents = 0;
         _pollfds.push_back(cli);
+        _clientBuffers[client_fd].setFd(client_fd);
         
         std::cout << "New client connected: " << client_fd << std::endl;
     }
@@ -142,6 +203,7 @@ void Server::ReceiveNewData(int fd, ChannelRegistry& channels) {
 
     if (bytes > 0) {
         Client& client = _clientBuffers[fd];
+        client.noteActivity();
         client.appendInput(buffer, static_cast<std::size_t>(bytes));
         std::string command;
         while (client.extractLine(command))

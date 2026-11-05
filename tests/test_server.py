@@ -25,6 +25,11 @@ class IrcServerTests(unittest.TestCase):
             cwd=ROOT,
             stdout=subprocess.DEVNULL,
             stderr=subprocess.DEVNULL,
+            env={
+                **os.environ,
+                "IRC_PING_INTERVAL_SECONDS": "2",
+                "IRC_PING_TIMEOUT_SECONDS": "2",
+            },
         )
         cls.readiness_socket = None
         deadline = time.time() + 5
@@ -82,6 +87,32 @@ class IrcServerTests(unittest.TestCase):
             return received
         self.received[client] = b""
         return received
+
+    def receive_line_matching(self, client, prefix, timeout=5):
+        deadline = time.time() + timeout
+        observed = []
+        while time.time() < deadline:
+            received = self.received[client]
+            newline = received.find(b"\r\n")
+            if newline != -1:
+                line = received[:newline]
+                self.received[client] = received[newline + 2 :]
+                observed.append(line)
+                if line.startswith(prefix):
+                    return line
+                continue
+            try:
+                chunk = client.recv(4096)
+            except socket.timeout:
+                continue
+            if not chunk:
+                break
+            self.received[client] += chunk
+        self.fail(
+            "Did not receive line starting with {!r}; received {!r}".format(
+                prefix, observed
+            )
+        )
 
     def register(self, nickname):
         client = self.connect_client()
@@ -378,6 +409,51 @@ class IrcServerTests(unittest.TestCase):
             b":irc.Brika.net PONG irc.Brika.net :after-registration-token",
             reply,
         )
+
+    def test_answers_server_ping_and_remains_connected(self):
+        client = self.register("server_ping_reply")
+        first_ping = self.receive_line_matching(
+            client, b":irc.Brika.net PING :"
+        )
+        token = first_ping.split(b" :", 1)[1]
+        client.sendall(b"PONG irc.Brika.net :" + token + b"\r\n")
+
+        next_ping = self.receive_line_matching(
+            client, b":irc.Brika.net PING :", timeout=4
+        )
+        next_token = next_ping.split(b" :", 1)[1]
+        client.sendall(b"PONG irc.Brika.net :" + next_token + b"\r\n")
+        client.sendall(b"PING :still-connected\r\n")
+        reply = self.receive_until(client, b"PONG irc.Brika.net :still-connected")
+        self.assertIn(b"PONG irc.Brika.net :still-connected", reply)
+
+    def test_disconnects_client_that_does_not_answer_server_ping(self):
+        client = self.register("server_ping_timeout")
+        ping = self.receive_line_matching(client, b":irc.Brika.net PING :")
+        self.assertIn(b" PING :", ping)
+
+        deadline = time.time() + 5
+        while time.time() < deadline:
+            try:
+                if not client.recv(4096):
+                    return
+            except socket.timeout:
+                continue
+        self.fail("Server kept a client connected after its PING timed out")
+
+    def test_ignores_pong_with_wrong_token(self):
+        client = self.register("server_ping_bad_pong")
+        self.receive_line_matching(client, b":irc.Brika.net PING :")
+        client.sendall(b"PONG irc.Brika.net :not-the-server-token\r\n")
+
+        deadline = time.time() + 5
+        while time.time() < deadline:
+            try:
+                if not client.recv(4096):
+                    return
+            except socket.timeout:
+                continue
+        self.fail("A PONG with the wrong token prevented the timeout")
 
     def test_rejects_commands_before_registration(self):
         client = self.connect_client()

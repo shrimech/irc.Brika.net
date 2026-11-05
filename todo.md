@@ -12,8 +12,8 @@ be added here.
 | Command or feature | Current status |
 | --- | --- |
 | `PASS`, `NICK`, `USER` | Registration is implemented; `USER` identity fields beyond username are not retained. |
-| `PING` | Responds with `PONG`; server-initiated ping/timeout handling is not implemented. |
-| `PONG` | No inbound command handler. |
+| `PING` | Replies to client probes with `PONG`; sends idle-client probes and disconnects clients that miss the configured timeout. |
+| `PONG` | Accepts matching server probe tokens; unrelated tokens do not satisfy an outstanding probe. |
 | `CAP` | Partial `LS`, `LIST`, `REQ`, and `END`; no capabilities are supported or tracked. |
 | `PRIVMSG` | One user or channel target; uses inconsistent write paths, and identifier matching is not uniformly IRC-case-insensitive. |
 | `JOIN` | One `#` channel per command; no comma-separated channel/key lists or `JOIN 0`. |
@@ -384,15 +384,13 @@ tested through registration and nickname changes.
 
 ### 23. Implement standard single-server utility commands
 
-**Current gap:** `PONG` is not accepted, and common client utility commands
-such as `AWAY`, `ISON`, and `USERHOST` are absent. The server does not
-originate `PING` probes or detect idle clients.
+**Current gap:** Common client utility commands such as `AWAY`, `ISON`, and
+`USERHOST` are absent.
 
-**Work:** Implement the commands that fit the single-server scope, using
-standard numerics and current client state. If server-originated liveness
-probes are added, track outstanding tokens and deadlines and disconnect
-clients that do not answer. Explicitly document protocol commands excluded
-because they require server linking, operator privileges, or services.
+**Work:** Implement utility commands that fit the single-server scope, using
+standard numerics and current client state. Explicitly document protocol
+commands excluded because they require server linking, operator privileges,
+or services.
 
 **Done when:** Supported utility commands have correct behavior and tests for
 valid, missing, and unknown targets; unsupported network/operator commands

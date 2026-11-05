@@ -31,6 +31,11 @@ static void authenticateClient(Client& client, std::map<int, Client>& clientBuff
 }
 
 static bool handleClientNegotiation(Client& client, const Command& command) {
+    if (command.command == "PONG") {
+        if (!command.params.empty())
+            client.acknowledgePing(command.params.back());
+        return true;
+    }
     if (command.command == "PING") {
         if (command.params.empty()) {
             client.sendMessage(":irc.Brika.net 409 " +
