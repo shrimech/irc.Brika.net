@@ -4,11 +4,14 @@
 #include "Channel.hpp"
 #include <map>
 #include <memory>
+#include <string>
+#include <vector>
 
 class ChannelRegistry
 {
 	private:
 		std::map<std::string, std::unique_ptr<Channel>> _channels;
+		static std::string normalizeName(const std::string& name);
 
 	public:
 		ChannelRegistry();
@@ -19,6 +22,7 @@ class ChannelRegistry
 		Channel* findOrCreate(const std::string& name);
 		void removeChannel(const std::string& name);
 		void removeClientFromAllChannels(int fd);
+		std::vector<std::string> listChannelNames() const;
 };
 
 #endif

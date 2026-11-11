@@ -14,6 +14,7 @@ class Client : public Authentification
         std::chrono::steady_clock::time_point lastActivity;
         std::string pendingPingToken;
         std::chrono::steady_clock::time_point pingDeadline;
+        std::string awayMessage;
         
     public:
         enum class LivenessAction {
@@ -37,6 +38,10 @@ class Client : public Authentification
         bool acknowledgePing(const std::string& token);
         std::chrono::steady_clock::time_point nextLivenessDeadline(
             std::chrono::seconds interval) const;
+
+        void setAwayMessage(const std::string& reason);
+        std::string getAwayMessage() const;
+        bool isAway() const;
 };
 
 #endif
