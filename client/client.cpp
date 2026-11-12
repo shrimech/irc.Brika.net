@@ -45,6 +45,18 @@ std::chrono::steady_clock::time_point Client::nextLivenessDeadline(
     return pendingPingToken.empty() ? lastActivity + interval : pingDeadline;
 }
 
+void Client::setAwayMessage(const std::string& reason) {
+    awayMessage = reason;
+}
+
+std::string Client::getAwayMessage() const {
+    return awayMessage;
+}
+
+bool Client::isAway() const {
+    return !awayMessage.empty();
+}
+
 void Client::appendInput(const char* data, std::size_t size) {
     inputBuffer.append(data, size);
 }

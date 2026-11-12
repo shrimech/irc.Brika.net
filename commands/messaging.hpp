@@ -10,5 +10,7 @@ class QuizBot;
 
 void handlePrivmsg(Client& client, std::map<int, Client>& clients, const Command& command,
     ChannelRegistry& channels, QuizBot& bot);
+void handleNotice(Client& client, std::map<int, Client>& clients, const Command& command,
+    ChannelRegistry& channels);
 
 #endif
